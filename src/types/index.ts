@@ -286,6 +286,45 @@ export interface ArbOpportunity {
   recommendation: "OPEN" | "MONITOR" | "AVOID";
 }
 
+// ─── Dual-Signal Discovery Engine ────────────────────────────────────────────
+
+/** A large on-chain trade detected via Pacifica WebSocket ($10k+ notional) */
+export interface WhaleEvent {
+  id: string;
+  symbol: string;           // e.g. "SOL"
+  side: Direction;          // LONG = buy, SHORT = sell
+  size: number;             // contract units
+  price: number;            // fill price USD
+  notional: number;         // size * price
+  timestamp: number;
+}
+
+/** Normalized social signal from Elfa AI with derived scores */
+export interface AlphaSocialSignal {
+  symbol: string;
+  mentionCount: number;
+  changePercent: number;
+  sentiment: WhaleSentiment;
+  /** 0-100: mapped from changePercent, clamped */
+  sentimentScore: number;
+  /** 0-100: mention count normalised vs 1 000 mentions ceiling */
+  volumeScore: number;
+  fetchedAt: number;        // for TTL check
+}
+
+/** Both social + whale signals aligned for the same symbol */
+export interface VerifiedAlpha {
+  id: string;
+  symbol: string;
+  social: AlphaSocialSignal;
+  whale: WhaleEvent;
+  /** Direction agreed on by both signals */
+  direction: Direction;
+  /** Composite confidence 0-100 */
+  confidence: number;
+  verifiedAt: number;
+}
+
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 
 export interface WsPricesPayload {

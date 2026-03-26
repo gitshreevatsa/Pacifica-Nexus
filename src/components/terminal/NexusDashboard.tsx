@@ -39,7 +39,7 @@ export default function NexusDashboard() {
     <div className="flex flex-col h-screen bg-[#050811]">
       <SessionBar />
 
-      <main className="flex-1 grid grid-cols-[320px_1fr_340px] gap-2 p-2 overflow-hidden min-h-0">
+      <main className="flex-1 grid grid-cols-[380px_1fr_340px] gap-2 p-2 overflow-hidden min-h-0">
         {/* Left — Whale Shadow */}
         <Panel>
           <Suspense fallback={<PanelSkeleton rows={6} />}>

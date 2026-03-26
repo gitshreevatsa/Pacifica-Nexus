@@ -50,9 +50,12 @@ async function apiFetch<T>(
   });
   const json = await res.json().catch(() => ({ error: res.statusText }));
   if (!res.ok) {
-    const msg = json?.error ?? json?.message ?? JSON.stringify(json);
+    // Pacifica uses several error field names depending on the endpoint
+    const msg =
+      json?.error ?? json?.message ?? json?.detail ?? json?.msg ??
+      (typeof json === "string" ? json : JSON.stringify(json));
     console.error(`[Pacifica ${res.status}] ${path}`, json);
-    throw new Error(`Pacifica error (${res.status}): ${msg}`);
+    throw new Error(`[${res.status}] ${msg}`);
   }
   // Some endpoints return { success: false, error: "..." } with HTTP 200
   if (json && typeof json === "object" && json.success === false) {
@@ -403,6 +406,13 @@ export class PacificaClient {
       slippage_percent: params.slippage ?? DEFAULT_SLIPPAGE,
       reduce_only:      params.reduceOnly ?? false,
       builder_code:     BUILDER_CODE,        // ← POINTPULSE always
+    });
+    console.debug("[Pacifica] createMarketOrder →", {
+      symbol: params.symbol,
+      side,
+      amount: body.amount,
+      slippage_percent: body.slippage_percent,
+      reduce_only: body.reduce_only,
     });
     return post<{ order_id: number }>("/orders/create_market", body);
   }

@@ -18,14 +18,49 @@ const JUPITER_PRICE_API =
 /** Minimum annualized yield (%) to flag as actionable. */
 const MIN_YIELD_THRESHOLD = 15;
 
-/** Markets to scan. Extend as Pacifica lists more assets. */
-const SCAN_MARKETS = [
-  { perpSymbol: "SOL-PERP",  spotMint: "So11111111111111111111111111111111111111112" },
-  { perpSymbol: "BTC-PERP",  spotMint: "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ5P" },
-  { perpSymbol: "ETH-PERP",  spotMint: "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs" },
-  { perpSymbol: "JTO-PERP",  spotMint: "jtojtomepa8bdiya1GFtu1hZ3UGxmkKmxiqYCCCGwwpGXk" },
-  { perpSymbol: "JUP-PERP",  spotMint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN" },
-];
+/**
+ * Spot mint addresses for every token likely to be listed on Pacifica.
+ * Key = base symbol (uppercase, no -PERP).
+ * Auto-discovery: fetchArbData pulls ALL Pacifica markets and joins against this map —
+ * so any new listing Pacifica adds is picked up automatically as long as its mint is here.
+ */
+const SPOT_MINT: Record<string, string> = {
+  // ── Majors ──────────────────────────────────────────────────────────────────
+  SOL:     "So11111111111111111111111111111111111111112",
+  BTC:     "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ5P",  // wBTC (Portal)
+  ETH:     "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",  // wETH (Portal)
+
+  // ── Solana ecosystem ─────────────────────────────────────────────────────────
+  JTO:     "jtojtomepa8bdiya1GFtu1hZ3UGxmkKmxiqYCCCGwwpGXk",
+  JUP:     "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+  RAY:     "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+  PYTH:    "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3",
+  ORCA:    "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1Adventure",
+  MNGO:    "MangoCzJ36AjZyKwVj3VnYU4GTonjfVEnJmvvWaxLac",
+  MSOL:    "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+  BSOL:    "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+
+  // ── Memecoins ────────────────────────────────────────────────────────────────
+  WIF:     "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+  BONK:    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+  POPCAT:  "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+  MOODENG: "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzc3eu",
+  PENGU:   "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv",
+  BOME:    "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
+  TRUMP:   "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN",
+  MELANIA: "FUAfBo2jgks6gB4Z4LfZkqSZgzNucisEHqnNebaRxM1P",
+  FARTCOIN:"9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+
+  // ── Cross-chain wrapped ───────────────────────────────────────────────────────
+  W:       "85VBFQZC9TZkfaptBWjvUw7YbZjy52A6mjtPGjstQAmQ",  // Wormhole
+  RENDER:  "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof",
+  DRIFT:   "DriFtupJYLTosbwoN8koMbEYSx54aFAVLddWsbksjwg7",
+  ZEUS:    "ZEUS1aR7aX8DFFJf5QjWj2ftDDdNTroMNGo8YoQm3Gq",
+  CLOUD:   "CLoUDKc4Ane7HeQcPpE3YHnznRxhMimJ4MyaUqyHFzAu",
+  MEW:     "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5",
+  PONKE:   "5z3EqYQo9HiCEs3R84RCDMu2n7anpDMxRhdK31CR8Ada",
+  GIGA:    "63LfDmNb3MQ8mw9MtZ2To9bEA2M71kZUUGq5tiJxcqj9",
+};
 
 // ─── Jupiter Price Fetcher ────────────────────────────────────────────────────
 
@@ -120,27 +155,34 @@ async function fetchArbData(): Promise<{
   snapshots: FundingSnapshot[];
   opportunities: ArbOpportunity[];
 }> {
-  const [markets, spotPrices] = await Promise.all([
-    getPacificaClient().getMarkets(),
-    fetchJupiterPrices(SCAN_MARKETS.map((m) => m.spotMint)),
-  ]);
+  const markets = await getPacificaClient().getMarkets();
 
-  const snapshots: FundingSnapshot[] = [];
-  const opportunities: ArbOpportunity[] = [];
+  // Build the set of (market, perpSymbol, spotMint) tuples for every Pacifica
+  // market we have a spot mint for. Pacifica may return "SOL" or "SOL-PERP".
+  const toScan: Array<{ market: Market; perpSymbol: string; spotMint: string }> = [];
+  for (const market of markets) {
+    const baseSymbol = market.symbol.replace(/-PERP$/i, "").toUpperCase();
+    const spotMint   = SPOT_MINT[baseSymbol];
+    if (!spotMint) continue;
+    const perpSymbol = baseSymbol + "-PERP";
+    toScan.push({ market, perpSymbol, spotMint });
+  }
 
-  for (const { perpSymbol, spotMint } of SCAN_MARKETS) {
-    // Pacifica may return "SOL" or "SOL-PERP" — try both
-    const baseSymbol = perpSymbol.replace("-PERP", "");
-    const market = markets.find(
-      (m) => m.symbol === perpSymbol || m.symbol === baseSymbol
-    );
+  if (toScan.length === 0) return { snapshots: [], opportunities: [] };
+
+  // Fetch all needed spot mints in one Jupiter call
+  const uniqueMints = [...new Set(toScan.map((t) => t.spotMint))];
+  const spotPrices  = await fetchJupiterPrices(uniqueMints);
+
+  const snapshots:     FundingSnapshot[]  = [];
+  const opportunities: ArbOpportunity[]   = [];
+
+  for (const { market, perpSymbol, spotMint } of toScan) {
     const spotPrice = spotPrices[spotMint];
-
-    if (!market || !spotPrice) continue;
+    if (!spotPrice) continue;
 
     const snap = buildSnapshot(market, spotPrice, perpSymbol);
-    const opp = scoreOpportunity(snap);
-
+    const opp  = scoreOpportunity(snap);
     snapshots.push(snap);
     opportunities.push(opp);
   }

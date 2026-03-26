@@ -6,8 +6,9 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Search } from "lucide-react";
 import {
   createChart,
   ColorType,
@@ -67,17 +68,16 @@ function MarketTab({
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-mono whitespace-nowrap border transition-all shrink-0",
+        "flex items-center gap-1.5 px-3 py-2 rounded text-[11.5px] font-mono whitespace-nowrap border transition-all shrink-0",
         selected
           ? "bg-electric/20 border-electric/50 text-electric-300"
           : "bg-surface-raised border-surface-border text-slate-400 hover:border-slate-500 hover:text-slate-200"
       )}
     >
       <span className="font-semibold text-white">{symbol}</span>
-      <span className="text-[10px]">{formatUSD(markPrice)}</span>
-      <span className={cn("text-[10px]", isPos ? "text-neon-green" : "text-danger")}>
-        {isPos ? "▲" : "▼"}
-        {Math.abs(change24h).toFixed(2)}%
+      <span className="text-[11px]">{formatUSD(markPrice)}</span>
+      <span className={cn("text-[11px]", isPos ? "text-neon-green" : "text-danger")}>
+        {isPos ? "▲" : "▼"}{Math.abs(change24h).toFixed(2)}%
       </span>
     </button>
   );
@@ -92,8 +92,15 @@ export default function PriceChart() {
 
   const [selectedSymbol, setSelectedSymbol] = useState("SOL");
   const [selectedInterval, setSelectedInterval] = useState<Interval>("5m");
+  const [marketSearch, setMarketSearch] = useState("");
 
   const { markets } = usePacifica();
+
+  const filteredMarkets = useMemo(() => {
+    const q = marketSearch.trim().toLowerCase();
+    if (!q) return markets;
+    return markets.filter((m) => m.symbol.toLowerCase().includes(q));
+  }, [markets, marketSearch]);
 
   // Real kline data from Pacifica
   const { data: klines = [] } = useQuery<CandlestickData[]>({
@@ -131,7 +138,7 @@ export default function PriceChart() {
         vertLine: { color: "#0062FF", labelBackgroundColor: "#0062FF" },
         horzLine: { color: "#0062FF", labelBackgroundColor: "#0062FF" },
       },
-      rightPriceScale: { borderColor: "#1a2235" },
+      rightPriceScale: { borderColor: "#1a2235", scaleMargins: { top: 0.06, bottom: 0.06 } },
       timeScale: { borderColor: "#1a2235", timeVisible: true, secondsVisible: false },
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight,
@@ -175,25 +182,44 @@ export default function PriceChart() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Market tabs */}
-      <div className="px-3 py-1.5 border-b border-surface-border overflow-x-auto scrollbar-none shrink-0">
-        <div className="flex items-center gap-1 min-w-max">
-          {markets.slice(0, 8).map((m) => (
-            <MarketTab
-              key={m.symbol}
-              symbol={m.symbol}
-              markPrice={m.markPrice}
-              change24h={m.priceChange24h}
-              selected={selectedSymbol === m.symbol}
-              onClick={() => setSelectedSymbol(m.symbol)}
+      {/* Market tabs + search */}
+      <div className="border-b border-surface-border shrink-0">
+        {/* Search bar */}
+        <div className="px-3 pt-2 pb-1.5">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
+            <input
+              type="text"
+              value={marketSearch}
+              onChange={(e) => setMarketSearch(e.target.value)}
+              placeholder="Search markets…"
+              className="w-full bg-surface-raised border border-surface-border rounded-md pl-6 pr-3 py-1.5 text-[11px] font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-electric/50"
             />
-          ))}
+          </div>
+        </div>
+        {/* Scrollable tab row */}
+        <div className="px-3 pb-2 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1 min-w-max">
+            {filteredMarkets.map((m) => (
+              <MarketTab
+                key={m.symbol}
+                symbol={m.symbol}
+                markPrice={m.markPrice}
+                change24h={m.priceChange24h}
+                selected={selectedSymbol === m.symbol}
+                onClick={() => { setSelectedSymbol(m.symbol); setMarketSearch(""); }}
+              />
+            ))}
+            {filteredMarkets.length === 0 && (
+              <span className="text-[10px] text-slate-600 font-mono py-1">No markets match</span>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Mark price + stats row */}
       {activeMarket && (
-        <div className="flex items-center gap-4 px-4 py-1.5 border-b border-surface-border flex-wrap shrink-0">
+        <div className="flex items-center gap-4 px-4 py-1 border-b border-surface-border flex-wrap shrink-0">
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-mono font-bold text-white">
               {formatUSD(activeMarket.markPrice)}

@@ -159,7 +159,7 @@ function ArbRow({
 
 export default function ArbScanner() {
   const { snapshots, opportunities, topOpportunity, isLoading, error, refetch } = useArbScanner();
-  const { openPosition, hasAgent, keyStored, walletAddress, markPrices } = usePacifica();
+  const { openPosition, hasAgent, keyStored, walletAddress, markPrices, markets } = usePacifica();
   const [hedgingMarket, setHedgingMarket] = useState<string | null>(null);
   const [toastMsg, setToastMsg]           = useState<string | null>(null);
   const [pending, setPending]             = useState<FundingSnapshot | null>(null);
@@ -273,6 +273,7 @@ export default function ArbScanner() {
           symbol={pending.perpSymbol.replace("-PERP", "")}
           side="SHORT"
           markPrice={markPrices[pending.perpSymbol.replace("-PERP", "")] ?? markPrices[pending.perpSymbol] ?? 0}
+          minOrderSize={markets.find(m => m.symbol === pending.perpSymbol.replace("-PERP", "") || m.symbol === pending.perpSymbol)?.minOrderSize ?? 0}
           description={`Short the ${pending.perpSymbol} perp on Pacifica to collect the ${(pending.fundingRate * 100).toFixed(4)}%/h funding rate (${opportunities.find(o => o.market === pending.perpSymbol)?.annualizedYield.toFixed(1) ?? "?"}% annualized). Jupiter will open so you can buy the same amount of spot to stay market-neutral.`}
           jupiterUrl={jupiterUrl(pending.perpSymbol.replace("-PERP", ""))}
           onConfirm={handleConfirmHedge}

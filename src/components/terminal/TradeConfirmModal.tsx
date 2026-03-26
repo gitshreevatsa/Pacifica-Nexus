@@ -16,6 +16,8 @@ export interface TradeConfirmProps {
   side: "LONG" | "SHORT";
   markPrice: number;
   lotSize?: number;          // default 0.01
+  /** Minimum USD notional from market info — blocks confirm if below */
+  minOrderSize?: number;
   description?: string;
   /** If set, opens Jupiter in a new tab on confirm */
   jupiterUrl?: string;
@@ -32,15 +34,16 @@ function snapToLot(value: number, lotSize: number): number {
 }
 
 export default function TradeConfirmModal({
-  symbol, side, markPrice, lotSize = 0.01, description, jupiterUrl, onConfirm, onCancel, isExecuting,
+  symbol, side, markPrice, lotSize = 0.01, minOrderSize = 0, description, jupiterUrl, onConfirm, onCancel, isExecuting,
 }: TradeConfirmProps) {
   const [unitInput, setUnitInput] = useState(String(PRESET_UNITS[1])); // default 0.1
   const isLong = side === "LONG";
 
-  const rawUnits  = parseFloat(unitInput) || 0;
-  const units     = snapToLot(Math.max(0, rawUnits), lotSize);
-  const usdValue  = markPrice > 0 ? units * markPrice : 0;
-  const valid     = units >= lotSize;
+  const rawUnits   = parseFloat(unitInput) || 0;
+  const units      = snapToLot(Math.max(0, rawUnits), lotSize);
+  const usdValue   = markPrice > 0 ? units * markPrice : 0;
+  const belowMin   = minOrderSize > 0 && usdValue > 0 && usdValue < minOrderSize;
+  const valid      = units >= lotSize && !belowMin;
 
   const handleConfirm = () => {
     if (!valid) return;
@@ -129,17 +132,22 @@ export default function TradeConfirmModal({
             </div>
 
             {/* USD notional */}
-            {valid && (
-              <p className="text-[11px] text-slate-400 mt-1.5 font-mono">
-                ≈ <span className="text-white font-semibold">
+            {units > 0 && markPrice > 0 && (
+              <p className={cn("text-[11px] mt-1.5 font-mono", belowMin ? "text-danger" : "text-slate-400")}>
+                ≈ <span className={cn("font-semibold", belowMin ? "text-danger" : "text-white")}>
                   ${usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>{" "}
                 <span className="text-slate-600">notional at current price</span>
+                {belowMin && (
+                  <span className="block text-danger mt-0.5">
+                    Min order size is ${minOrderSize.toLocaleString()} — increase units above
+                  </span>
+                )}
               </p>
             )}
-            {!valid && rawUnits > 0 && (
+            {units > 0 && units < lotSize && (
               <p className="text-[11px] text-danger mt-1.5 font-mono">
-                Min order: {lotSize} {symbol}
+                Min lot size: {lotSize} {symbol}
               </p>
             )}
           </div>
