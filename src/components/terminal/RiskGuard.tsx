@@ -12,32 +12,35 @@ import { usePacifica } from "@/hooks/usePacifica";
 import type { Position, AccountHealth } from "@/types";
 import { cn, formatUSD, formatPct } from "@/lib/utils";
 
-// ─── Health Gauge ─────────────────────────────────────────────────────────────
+// ─── Segmented Health Bar ─────────────────────────────────────────────────────
 
-function HealthGauge({ marginRatio }: { marginRatio: number }) {
-  const pct = Math.min(Math.max(marginRatio * 100, 0), 100);
-  const colorClass =
-    pct > 60 ? "stroke-danger text-danger" :
-    pct > 30 ? "stroke-warning text-warning" :
-    "stroke-neon-green text-neon-green";
-
-  const r = 30;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (pct / 100) * circ;
-
+function SegmentedBar({ marginRatio }: { marginRatio: number }) {
+  const segments = 10;
+  const filled   = Math.round(Math.min(Math.max(marginRatio, 0), 1) * segments);
   return (
-    <div className="relative flex items-center justify-center">
-      <svg width="80" height="80" className="-rotate-90">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-surface-border" />
-        <circle cx="40" cy="40" r={r} fill="none" strokeWidth="5" strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={offset}
-          className={colorClass}
-          style={{ transition: "stroke-dashoffset 0.5s ease" }}
-        />
-      </svg>
-      <div className="absolute text-center">
-        <p className={cn("text-sm font-bold font-mono", colorClass.split(" ")[1])}>{pct.toFixed(0)}%</p>
-        <p className="text-[8px] text-slate-500 uppercase">Used</p>
+    <div className="w-full">
+      <div className="flex gap-0.5 mb-1">
+        {Array.from({ length: segments }).map((_, i) => {
+          const active = i < filled;
+          const bg = active
+            ? i < 4 ? "#00ff87" : i < 7 ? "#ffb800" : "#ff3b5c"
+            : "rgba(255,255,255,0.07)";
+          return (
+            <div
+              key={i}
+              className="flex-1 h-2 rounded-sm transition-all duration-150"
+              style={{ background: bg, boxShadow: active && i >= 7 ? "0 0 6px rgba(255,59,92,0.5)" : undefined }}
+            />
+          );
+        })}
+      </div>
+      <div className="flex justify-between">
+        <span className="term-label">Margin Used</span>
+        <span className={cn("text-[10px] font-mono font-semibold",
+          marginRatio > 0.7 ? "danger-glow" : marginRatio > 0.5 ? "text-warning" : "text-neon-green"
+        )}>
+          {(marginRatio * 100).toFixed(0)}%
+        </span>
       </div>
     </div>
   );
@@ -58,10 +61,10 @@ function AccountStats({ health }: { health: AccountHealth }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-2 mb-3">
+    <div className="grid grid-cols-2 gap-1.5 mb-3">
       {stats.map(({ label, value, color }) => (
-        <div key={label} className="bg-surface-overlay rounded-lg p-2.5">
-          <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">{label}</p>
+        <div key={label} className="rounded-lg p-2.5 transition-all duration-150" style={{ background: "rgba(255,255,255,0.03)" }}>
+          <p className="term-label mb-0.5">{label}</p>
           <p className={cn("text-sm font-mono font-bold", color)}>{value}</p>
         </div>
       ))}
@@ -88,10 +91,9 @@ function PositionRow({
   const isAtRisk = distToLiq < 10;
 
   return (
-    <div className={cn(
-      "rounded-lg border p-3 transition-all",
-      isAtRisk ? "border-danger/50 bg-danger/5" : "border-surface-border bg-surface-raised"
-    )}>
+    <div className="rounded-xl p-3 transition-all duration-150" style={{
+      background: isAtRisk ? "rgba(255,59,92,0.06)" : "rgba(255,255,255,0.02)",
+    }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -129,32 +131,32 @@ function PositionRow({
 
       {/* Distance-to-liq bar */}
       <div className="mb-2.5">
-        <div className="flex justify-between text-[9px] text-slate-500 mb-1">
-          <span>Dist. to Liq.</span>
-          <span className={cn(isAtRisk ? "text-danger font-semibold" : "text-slate-400")}>
+        <div className="flex justify-between mb-1">
+          <span className="term-label">Dist. to Liq.</span>
+          <span className={cn("text-[9px] font-mono font-semibold", isAtRisk ? "danger-glow" : "text-white/50")}>
             {distToLiq.toFixed(1)}%
           </span>
         </div>
-        <div className="h-1 bg-surface-border rounded-full overflow-hidden">
+        <div className="h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
           <div
-            className={cn("h-full rounded-full transition-all",
-              isAtRisk ? "bg-danger" : distToLiq < 25 ? "bg-warning" : "bg-neon-green"
-            )}
-            style={{ width: `${Math.min(distToLiq, 100)}%` }}
+            className="h-full rounded-full transition-all duration-150"
+            style={{
+              width: `${Math.min(distToLiq, 100)}%`,
+              background: isAtRisk ? "#ff3b5c" : distToLiq < 25 ? "#ffb800" : "#00ff87",
+              boxShadow: isAtRisk ? "0 0 6px rgba(255,59,92,0.6)" : undefined,
+            }}
           />
         </div>
       </div>
 
-      {/* De-Risk button */}
+      {/* De-Risk button — pulses when at risk */}
       <button
         onClick={() => onDeRisk(position)}
         disabled={isDeRisking}
         className={cn(
-          "w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-[11px] font-semibold border transition-all",
-          isAtRisk
-            ? "border-danger/60 text-danger hover:bg-danger/10 hover:shadow-danger"
-            : "border-surface-border text-slate-400 hover:border-warning/50 hover:text-warning",
-          isDeRisking && "opacity-50 cursor-not-allowed"
+          "w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold",
+          isAtRisk ? "btn-ghost-danger" : "btn-ghost-neutral",
+          isDeRisking ? "btn-scanning opacity-60 cursor-not-allowed" : ""
         )}
       >
         <TrendingDown className="w-3 h-3" />
@@ -200,7 +202,7 @@ export default function RiskGuard() {
   return (
     <div className="flex flex-col h-full relative">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-surface-border">
+      <div className="px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className={cn("w-4 h-4", atRiskCount > 0 ? "text-danger" : "text-neon-green")} />
@@ -222,39 +224,34 @@ export default function RiskGuard() {
         {/* Health Gauge */}
         {accountHealth ? (
           <div className="pt-3">
-            <div className="flex items-center gap-4 mb-3">
-              <HealthGauge marginRatio={accountHealth.marginRatio} />
-              <div className="flex-1">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Account Status</p>
-                <p className={cn("text-sm font-semibold mt-0.5",
-                  accountHealth.marginRatio > 0.8 ? "text-danger" :
-                  accountHealth.marginRatio > 0.5 ? "text-warning" : "text-neon-green"
-                )}>
-                  {accountHealth.marginRatio > 0.8 ? "⚠ Critical" :
-                   accountHealth.marginRatio > 0.5 ? "Caution" : "Healthy"}
-                </p>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Margin used {formatPct(accountHealth.marginRatio)}
-                </p>
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="term-label">Account Status</p>
+              <p className={cn("text-xs font-semibold",
+                accountHealth.marginRatio > 0.8 ? "danger-glow" :
+                accountHealth.marginRatio > 0.5 ? "text-warning" : "text-neon-green"
+              )}>
+                {accountHealth.marginRatio > 0.8 ? "⚠ Critical" :
+                 accountHealth.marginRatio > 0.5 ? "Caution" : "● Healthy"}
+              </p>
             </div>
-            <AccountStats health={accountHealth} />
+            <SegmentedBar marginRatio={accountHealth.marginRatio} />
+            <div className="mt-3">
+              <AccountStats health={accountHealth} />
+            </div>
           </div>
         ) : (
           <div className="pt-3 space-y-2">
-            <div className="h-20 bg-surface-raised rounded-lg animate-pulse" />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="h-8 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />
+            <div className="grid grid-cols-2 gap-1.5">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-14 bg-surface-raised rounded-lg animate-pulse" />
+                <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />
               ))}
             </div>
           </div>
         )}
 
         {/* Positions list */}
-        <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">
-          Open Positions ({openPositions.length})
-        </p>
+        <p className="term-label mb-2">Open Positions ({openPositions.length})</p>
 
         {openPositions.length === 0 && (
           <p className="text-center text-slate-600 text-xs py-6">No open positions.</p>
@@ -273,7 +270,7 @@ export default function RiskGuard() {
       </div>
 
       {toastMsg && (
-        <div className="absolute bottom-4 left-4 right-4 bg-surface-overlay border border-electric/30 text-white text-xs rounded-lg px-3 py-2 animate-slide-up z-50 font-mono">
+        <div className="absolute bottom-4 left-4 right-4 text-white text-xs rounded-xl px-3 py-2 animate-slide-up z-50 font-mono" style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)" }}>
           {toastMsg}
         </div>
       )}

@@ -1,4 +1,4 @@
-/* ── Google Fonts — must be first ───────────────────────────────────────────── */
+/* ── Google Fonts ─────────────────────────────────────────────────────────────── */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 @tailwind base;
@@ -22,7 +22,9 @@
   }
 
   body {
-    @apply bg-midnight text-white font-sans antialiased;
+    background: #050505;
+    background-color: #050505;
+    @apply text-white font-sans antialiased;
   }
 
   input[type="number"]::-webkit-inner-spin-button,
@@ -32,15 +34,122 @@
   }
 }
 
-/* ── Custom scrollbar ────────────────────────────────────────────────────────── */
+/* ── Glass panel utility ─────────────────────────────────────────────────────── */
 @layer components {
+  .glass-panel {
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border-radius: 1rem;
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0.75rem;
+    transition: background 150ms ease-in-out;
+  }
+
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  /* Ghost button → Electric glow on hover */
+  .btn-ghost-blue {
+    border: 1px solid rgba(0, 98, 255, 0.45);
+    color: #4d8fff;
+    transition: all 150ms ease-in-out;
+  }
+
+  .btn-ghost-blue:hover:not(:disabled) {
+    background: #0062ff;
+    color: #fff;
+    box-shadow: 0 0 18px rgba(0, 98, 255, 0.45);
+  }
+
+  /* Ghost danger button → red glow on hover (De-Risk) */
+  .btn-ghost-danger {
+    border: 1px solid rgba(255, 59, 92, 0.5);
+    color: #ff3b5c;
+    background: rgba(255, 59, 92, 0.08);
+    transition: all 150ms ease-in-out;
+  }
+
+  .btn-ghost-danger:hover:not(:disabled) {
+    background: rgba(255, 59, 92, 0.18);
+    box-shadow: 0 0 16px rgba(255, 59, 92, 0.4);
+  }
+
+  /* Ghost warning button → amber glow on hover (Monitor) */
+  .btn-ghost-warning {
+    border: 1px solid rgba(255, 184, 0, 0.4);
+    color: #ffb800;
+    transition: all 150ms ease-in-out;
+  }
+
+  .btn-ghost-warning:hover:not(:disabled) {
+    background: rgba(255, 184, 0, 0.1);
+    box-shadow: 0 0 14px rgba(255, 184, 0, 0.3);
+  }
+
+  /* Market tab — unselected, hover brightens */
+  .market-tab {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: #64748b;
+    transition: all 150ms ease-in-out;
+  }
+
+  .market-tab:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #cbd5e1;
+  }
+
+  /* Market tab — selected state */
+  .market-tab-selected {
+    background: rgba(0, 98, 255, 0.15);
+    border: 1px solid rgba(0, 98, 255, 0.4);
+    color: #4d8fff;
+  }
+
+  /* Ghost neutral button → subtle white glow on hover */
+  .btn-ghost-neutral {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.4);
+    transition: all 150ms ease-in-out;
+  }
+
+  .btn-ghost-neutral:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Scan-line loader — 1px sweep across top of button */
+  .btn-scanning {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-scanning::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 98, 255, 0.9), transparent);
+    animation: scanline 1.2s linear infinite;
+  }
+
+  /* Custom scrollbar */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #232f45 transparent;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
   }
 
   .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
+    width: 3px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
@@ -48,16 +157,60 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-surface-border rounded-full;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 9999px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-electric/40;
+    background: rgba(0, 98, 255, 0.4);
   }
+
+  /* Label / value hierarchy */
+  .term-label {
+    @apply text-[9px] uppercase tracking-widest font-medium;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .term-value {
+    @apply font-mono font-semibold;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  /* Neon green APY glow */
+  .apy-glow {
+    color: #00ff88;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.55);
+  }
+
+  /* Danger glow */
+  .danger-glow {
+    color: #ff3b5c;
+    text-shadow: 0 0 8px rgba(255, 59, 92, 0.5);
+  }
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────────────────── */
+@keyframes scanline {
+  0%   { left: -60%; }
+  100% { left: 160%; }
+}
+
+@keyframes fadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideUp {
+  0%   { transform: translateY(10px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 /* ── Privy modal overrides ───────────────────────────────────────────────────── */
 #privy-modal-content {
-  background-color: #0d1220 !important;
-  border: 1px solid #232f45 !important;
+  background: rgba(10, 10, 10, 0.95) !important;
 }

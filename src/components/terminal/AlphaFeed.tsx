@@ -33,9 +33,9 @@ function formatNotional(n: number): string {
 
 function ScoreBar({ score, color }: { score: number; color: string }) {
   return (
-    <div className="flex-1 h-1 bg-surface-border rounded-full overflow-hidden">
+    <div className="flex-1 h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
       <div
-        className={cn("h-full rounded-full transition-all", color)}
+        className={cn("h-full rounded-full transition-all duration-150", color)}
         style={{ width: `${score}%` }}
       />
     </div>
@@ -46,24 +46,24 @@ function ScoreBar({ score, color }: { score: number; color: string }) {
 
 function SocialBadge({ score }: { score: number }) {
   return (
-    <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-electric/10 text-electric-300 border-electric/30">
-      🐦 SOCIAL {score}
+    <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(0,98,255,0.12)", color: "#4d8fff" }}>
+      🐦 {score}
     </span>
   );
 }
 
 function VolumeBadge({ score }: { score: number }) {
   return (
-    <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-neon-green/10 text-neon-green border-neon-green/30">
+    <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(0,255,135,0.08)", color: "#00ff87" }}>
       <BarChart2 className="w-2.5 h-2.5" />
-      VOL {score}
+      {score}
     </span>
   );
 }
 
 function VerifiedBadge() {
   return (
-    <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border bg-electric/20 text-electric-300 border-electric/50 animate-pulse">
+    <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded animate-pulse" style={{ background: "rgba(0,98,255,0.18)", color: "#4d8fff" }}>
       <CheckCircle2 className="w-2.5 h-2.5" />
       VERIFIED
     </span>
@@ -71,16 +71,14 @@ function VerifiedBadge() {
 }
 
 function SentimentBadge({ sentiment }: { sentiment: "BULLISH" | "BEARISH" | "NEUTRAL" }) {
-  const map = {
-    BULLISH: "bg-neon-green/10 text-neon-green border-neon-green/30",
-    BEARISH: "bg-danger/10 text-danger border-danger/30",
-    NEUTRAL: "bg-electric/10 text-electric-300 border-electric/30",
+  const styles: Record<string, React.CSSProperties> = {
+    BULLISH: { background: "rgba(0,255,135,0.08)", color: "#00ff87" },
+    BEARISH: { background: "rgba(255,59,92,0.08)", color: "#ff3b5c" },
+    NEUTRAL: { background: "rgba(0,98,255,0.08)", color: "#4d8fff" },
   };
-  const Icon =
-    sentiment === "BULLISH" ? TrendingUp :
-    sentiment === "BEARISH" ? TrendingDown : Minus;
+  const Icon = sentiment === "BULLISH" ? TrendingUp : sentiment === "BEARISH" ? TrendingDown : Minus;
   return (
-    <span className={cn("flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded border", map[sentiment])}>
+    <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded" style={styles[sentiment]}>
       <Icon className="w-2.5 h-2.5" />
       {sentiment[0] + sentiment.slice(1).toLowerCase()}
     </span>
@@ -102,18 +100,16 @@ function VerifiedAlphaCard({
   const isLong = alpha.direction === "LONG";
 
   return (
-    <div className={cn(
-      "group relative bg-surface-raised border-2 rounded-lg p-3 transition-all",
-      "border-electric/50 shadow-[0_0_12px_rgba(0,98,255,0.15)]",
-      "hover:shadow-[0_0_20px_rgba(0,98,255,0.25)] hover:border-electric/70"
-    )}>
-      {/* Verified glow accent */}
-      <div className="absolute inset-0 rounded-lg bg-electric/5 pointer-events-none" />
+    <div className="group relative rounded-xl p-3 transition-all duration-150" style={{
+      background: "rgba(0,98,255,0.05)",
+      boxShadow: "0 0 20px rgba(0,98,255,0.12)",
+    }}>
+      <div className="absolute inset-0 rounded-xl pointer-events-none" style={{ background: "rgba(0,98,255,0.03)" }} />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded-full bg-electric/20 flex items-center justify-center shrink-0 border border-electric/40">
+          <div className="w-7 h-7 rounded-full bg-electric/20 flex items-center justify-center shrink-0">
             <span className="text-[10px] font-bold text-electric-300">
               {alpha.symbol.slice(0, 2)}
             </span>
@@ -146,7 +142,7 @@ function VerifiedAlphaCard({
       </div>
 
       {/* Whale entry info */}
-      <div className="flex items-center justify-between bg-surface-overlay rounded px-2 py-1.5 mb-2 text-[9px] font-mono">
+      <div className="flex items-center justify-between rounded px-2 py-1.5 mb-2 text-[9px] font-mono" style={{ background: "rgba(255,255,255,0.04)" }}>
         <span className="text-slate-500">Whale entry</span>
         <span className="text-white font-semibold">${whale.price.toLocaleString()}</span>
         <span className="text-slate-400">{formatNotional(whale.notional)}</span>
@@ -173,20 +169,18 @@ function VerifiedAlphaCard({
         </div>
       </div>
 
-      {/* Mirror Trade CTA */}
+      {/* Mirror Trade CTA — ghost → electric glow on hover */}
       <button
         onClick={() => onMirror(alpha)}
         disabled={isTrading}
         className={cn(
-          "w-full flex items-center justify-center gap-1.5 py-2 rounded text-[11px] font-semibold border transition-all",
-          isLong
-            ? "border-neon-green/50 text-neon-green hover:bg-neon-green/10 bg-neon-green/5"
-            : "border-danger/50 text-danger hover:bg-danger/10 bg-danger/5",
-          isTrading && "opacity-40 cursor-not-allowed"
+          "w-full flex items-center justify-center gap-1.5 py-2 rounded text-[11px] font-semibold transition-all duration-150",
+          "btn-ghost-blue",
+          isTrading && "btn-scanning opacity-70 cursor-not-allowed"
         )}
       >
         <Zap className="w-3 h-3" />
-        Mirror Trade — {isLong ? "Long" : "Short"} {alpha.symbol}
+        {isTrading ? "Executing…" : `Mirror Trade — ${isLong ? "Long" : "Short"} ${alpha.symbol}`}
       </button>
     </div>
   );
@@ -206,11 +200,11 @@ function SocialCard({
   const isUp = signal.changePercent >= 0;
 
   return (
-    <div className="group bg-surface-raised border border-surface-border rounded-lg p-3 hover:border-slate-600 transition-all">
+    <div className="glass-card p-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-6 h-6 rounded-full bg-surface-overlay flex items-center justify-center shrink-0">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.06)" }}>
             <span className="text-[9px] font-bold text-slate-400">
               {signal.symbol.slice(0, 2)}
             </span>
@@ -230,7 +224,7 @@ function SocialCard({
 
       {/* Change bar */}
       <div className="flex items-center gap-2 mb-2">
-        <div className="flex-1 h-0.5 bg-surface-border rounded-full overflow-hidden">
+        <div className="flex-1 h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
           <div
             className={cn("h-full rounded-full", isUp ? "bg-neon-green/60" : "bg-danger/60")}
             style={{ width: `${Math.min(Math.abs(signal.changePercent), 100)}%` }}
@@ -381,12 +375,12 @@ export default function AlphaFeed() {
   return (
     <div className="flex flex-col h-full relative">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-surface-border shrink-0">
+      <div className="px-4 py-3 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-electric animate-pulse" />
             <h2 className="text-sm font-semibold text-white">Verified Alpha</h2>
-            <span className="text-[10px] font-mono text-slate-500 bg-surface-overlay px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-slate-500 px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.05)" }}>
               Dual-Signal
             </span>
           </div>
@@ -409,7 +403,7 @@ export default function AlphaFeed() {
         {/* ── Verified Alpha section ── */}
         {verifiedAlphas.length > 0 && (
           <div>
-            <p className="text-[9px] font-mono text-electric-300 uppercase tracking-widest mb-2 flex items-center gap-1">
+            <p className="term-label mb-2 flex items-center gap-1" style={{ color: "rgba(0,98,255,0.7)" }}>
               <CheckCircle2 className="w-2.5 h-2.5" />
               Verified Alpha ({verifiedAlphas.length})
             </p>
@@ -428,7 +422,7 @@ export default function AlphaFeed() {
 
         {/* ── Social signals section ── */}
         <div>
-          <p className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+          <p className="term-label mb-2 flex items-center gap-1">
             🐦 Social Signals
             {verifiedAlphas.length > 0 && (
               <span className="text-slate-600 normal-case tracking-normal ml-1">
@@ -438,7 +432,7 @@ export default function AlphaFeed() {
           </p>
 
           {isSocialLoading && Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-24 bg-surface-raised rounded-lg animate-pulse mb-2" />
+            <div key={i} className="h-24 rounded-xl animate-pulse mb-2" style={{ background: "rgba(255,255,255,0.04)" }} />
           ))}
 
           {socialError && (
@@ -472,7 +466,7 @@ export default function AlphaFeed() {
 
       {/* Toast */}
       {toastMsg && (
-        <div className="absolute bottom-4 left-4 right-4 bg-surface-overlay border border-electric/30 text-white text-xs rounded-lg px-3 py-2 animate-slide-up z-50 font-mono">
+        <div className="absolute bottom-4 left-4 right-4 text-white text-xs rounded-xl px-3 py-2 animate-slide-up z-50 font-mono" style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)" }}>
           {toastMsg}
         </div>
       )}

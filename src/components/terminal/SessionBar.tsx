@@ -53,7 +53,7 @@ function AgentKeyModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-midnight border border-surface-border rounded-xl w-full max-w-md mx-4 p-6 shadow-electric animate-fade-in">
+      <div className="rounded-2xl w-full max-w-md mx-4 p-6 animate-fade-in" style={{ background: "rgba(8,8,8,0.97)", backdropFilter: "blur(24px)" }}>
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-base font-bold text-white">Connect Agent Key</h3>
@@ -67,7 +67,7 @@ function AgentKeyModal({
         </div>
 
         {!hasSolanaWallet && (
-          <div className="flex items-start gap-2 bg-warning/10 border border-warning/30 rounded-lg px-3 py-2.5 mb-4">
+          <div className="flex items-start gap-2 bg-warning/10 rounded-lg px-3 py-2.5 mb-4">
             <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
             <p className="text-[11px] text-warning leading-relaxed">
               Connect your wallet first — the agent key must match the wallet registered at Pacifica.
@@ -75,7 +75,7 @@ function AgentKeyModal({
           </div>
         )}
 
-        <div className="bg-surface-overlay rounded-lg p-3 mb-4 space-y-2">
+        <div className="rounded-xl p-3 mb-4 space-y-2" style={{ background: "rgba(255,255,255,0.04)" }}>
           <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-2">Steps</p>
           {[
             { n: 1, text: "Create an Agent Key at Pacifica", link: "https://app.pacifica.fi/apikey" },
@@ -105,7 +105,8 @@ function AgentKeyModal({
             value={value}
             onChange={(e) => { setValue(e.target.value); setError(""); }}
             placeholder="Paste agent private key (base58)…"
-            className="w-full bg-surface-raised border border-surface-border text-white text-xs font-mono rounded-lg px-3 py-2.5 pr-10 focus:outline-none focus:border-electric/60 placeholder:text-slate-600"
+            className="w-full text-white text-xs font-mono rounded-lg px-3 py-2.5 pr-10 focus:outline-none placeholder:text-slate-600"
+            style={{ background: "rgba(255,255,255,0.05)" }}
           />
           <button onClick={() => setShowKey(!showKey)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
@@ -146,7 +147,7 @@ function AgentBadge({ publicKey, onClear }: { publicKey: string; onClear: () => 
   };
 
   return (
-    <div className="flex items-center gap-1.5 bg-neon-green/5 border border-neon-green/25 rounded-full px-2.5 py-1 text-[10px] font-mono"
+    <div className="flex items-center gap-1.5 bg-neon-green/5 rounded-full px-2.5 py-1 text-[10px] font-mono"
       title={`Agent public key: ${publicKey}`}>
       <CheckCircle className="w-3 h-3 text-neon-green" />
       <span className="text-neon-green">Agent</span>
@@ -191,7 +192,7 @@ export default function SessionBar() {
 
   return (
     <>
-      <header className="flex items-center justify-between px-5 py-2.5 border-b border-surface-border bg-midnight shrink-0 z-10">
+      <header className="flex items-center justify-between px-5 py-2.5 shrink-0 z-10" style={{ background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)" }}>
         {/* Brand */}
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 bg-gradient-electric rounded-lg flex items-center justify-center">
@@ -227,7 +228,7 @@ export default function SessionBar() {
         <div className="flex items-center gap-2">
           {connected && wallet ? (
             <>
-              <span className="hidden sm:inline text-[10px] font-mono text-slate-400 bg-surface-raised px-2.5 py-1 rounded-full border border-surface-border">
+              <span className="hidden sm:inline text-[10px] font-mono text-slate-400 px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
                 {wallet.adapter.name} · {truncateAddress(publicKey?.toBase58() ?? "", 5)}
               </span>
 
@@ -260,7 +261,7 @@ export default function SessionBar() {
 
       {/* Step 1: Agent Key Registration Banner */}
       {hasAgent && !isCheckingAgentKey && !agentKeyRegistered && (
-        <div className="flex items-center justify-between px-5 py-2 bg-warning/10 border-b border-warning/30 text-xs">
+        <div className="flex items-center justify-between px-5 py-2 bg-warning/10 text-xs">
           <div className="flex items-center gap-2 text-warning">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>
@@ -279,7 +280,7 @@ export default function SessionBar() {
 
       {/* Step 2: Builder Code Approval Banner */}
       {hasAgent && agentKeyRegistered && !isCheckingApproval && !builderApproved && (
-        <div className="flex items-center justify-between px-5 py-2 bg-electric/10 border-b border-electric/30 text-xs">
+        <div className="flex items-center justify-between px-5 py-2 bg-electric/10 text-xs">
           <div className="flex items-center gap-2 text-electric-300">
             <Zap className="w-3.5 h-3.5 shrink-0" />
             <span>

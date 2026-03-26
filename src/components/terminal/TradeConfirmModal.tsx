@@ -61,11 +61,11 @@ export default function TradeConfirmModal({
   const isSelected = (amt: number) => parseFloat(unitInput) === amt;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-midnight border border-surface-border rounded-xl w-full max-w-sm shadow-electric animate-fade-in">
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
+      <div className="rounded-2xl w-full max-w-sm animate-fade-in" style={{ background: "rgba(10,10,10,0.95)", backdropFilter: "blur(24px)" }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-surface-border">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h3 className="text-sm font-bold text-white">Confirm Trade</h3>
           <button onClick={onCancel} className="text-slate-500 hover:text-white transition-colors">
             <X className="w-4 h-4" />
@@ -74,12 +74,17 @@ export default function TradeConfirmModal({
 
         <div className="px-5 py-4 space-y-4">
           {/* Direction badge */}
-          <div className={cn(
-            "rounded-lg border p-3 flex items-center gap-3",
-            isLong ? "border-neon-green/30 bg-neon-green/5" : "border-danger/30 bg-danger/5"
-          )}>
-            <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0",
-              isLong ? "bg-neon-green/15" : "bg-danger/15")}>
+          <div
+            className="rounded-xl p-3 flex items-center gap-3"
+            style={isLong
+              ? { background: "rgba(0,255,135,0.05)" }
+              : { background: "rgba(255,59,92,0.05)" }
+            }
+          >
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: isLong ? "rgba(0,255,135,0.12)" : "rgba(255,59,92,0.12)" }}
+            >
               {isLong
                 ? <TrendingUp className="w-4 h-4 text-neon-green" />
                 : <TrendingDown className="w-4 h-4 text-danger" />}
@@ -94,7 +99,7 @@ export default function TradeConfirmModal({
 
           {/* Unit amount input */}
           <div>
-            <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-2">
+            <label className="term-label block mb-2">
               Amount ({symbol})
             </label>
 
@@ -103,12 +108,12 @@ export default function TradeConfirmModal({
               {PRESET_UNITS.map((amt) => (
                 <button key={amt}
                   onClick={() => selectPreset(amt)}
-                  className={cn(
-                    "py-1.5 rounded-lg text-xs font-bold border transition-all",
-                    isSelected(amt)
-                      ? "border-electric bg-electric/20 text-electric-300"
-                      : "border-surface-border text-slate-500 hover:border-electric/40 hover:text-slate-300"
-                  )}>
+                  className="py-1.5 rounded-lg text-xs font-bold transition-all duration-150"
+                  style={isSelected(amt)
+                    ? { background: "rgba(0,98,255,0.25)", color: "#4d8fff" }
+                    : { background: "rgba(255,255,255,0.06)", color: "#64748b" }
+                  }
+                >
                   {amt}
                 </button>
               ))}
@@ -124,7 +129,8 @@ export default function TradeConfirmModal({
                 onChange={(e) => setUnitInput(e.target.value)}
                 onBlur={handleBlur}
                 placeholder={`Min ${lotSize}`}
-                className="w-full bg-surface-raised border border-surface-border text-white text-sm font-mono rounded-lg px-3 pr-14 py-2 focus:outline-none focus:border-electric/60 placeholder:text-slate-600"
+                className="w-full text-white text-sm font-mono rounded-lg px-3 pr-14 py-2 focus:outline-none placeholder:text-slate-600"
+                style={{ background: "rgba(255,255,255,0.06)" }}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-mono">
                 {symbol}
@@ -157,9 +163,9 @@ export default function TradeConfirmModal({
           )}
 
           {jupiterUrl && (
-            <div className="flex items-start gap-2 bg-electric/5 border border-electric/20 rounded-lg px-3 py-2">
-              <ExternalLink className="w-3.5 h-3.5 text-electric-300 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-electric-300 leading-relaxed">
+            <div className="flex items-start gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(0,98,255,0.06)" }}>
+              <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#4d8fff" }} />
+              <p className="text-[11px] leading-relaxed" style={{ color: "#4d8fff" }}>
                 Jupiter will open in a new tab so you can buy the spot {symbol} leg.
               </p>
             </div>
@@ -177,16 +183,22 @@ export default function TradeConfirmModal({
         {/* Buttons */}
         <div className="px-5 pb-5 flex gap-2">
           <button onClick={onCancel}
-            className="flex-1 border border-surface-border text-slate-400 hover:text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">
+            className="flex-1 text-slate-400 hover:text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          >
             Cancel
           </button>
           <button onClick={handleConfirm} disabled={!valid || isExecuting}
             className={cn(
-              "flex-1 text-sm font-bold py-2.5 rounded-lg transition-colors disabled:opacity-40",
-              isLong
-                ? "bg-neon-green hover:bg-neon-green/90 text-midnight"
-                : "bg-danger hover:bg-danger/90 text-white"
-            )}>
+              "flex-1 text-sm font-bold py-2.5 rounded-xl transition-all duration-150 disabled:opacity-40",
+              isExecuting ? "btn-scanning" : "",
+              isLong ? "text-midnight" : "text-white"
+            )}
+            style={isLong
+              ? { background: "#00ff87" }
+              : { background: "#ff3b5c" }
+            }
+          >
             {isExecuting
               ? "Executing…"
               : jupiterUrl

@@ -11,11 +11,11 @@ const config: Config = {
       colors: {
         // Pacifica Nexus Design System
         midnight: {
-          DEFAULT: "#080B14",
-          50: "#0D1220",
-          100: "#111827",
-          200: "#1a2235",
-          300: "#232f45",
+          DEFAULT: "#080808",
+          50: "#0a0a0a",
+          100: "#0d0d0d",
+          200: "#111111",
+          300: "#161616",
         },
         electric: {
           DEFAULT: "#0062FF",
@@ -43,10 +43,10 @@ const config: Config = {
           dim: "#CC9300",
         },
         surface: {
-          DEFAULT: "#0D1220",
-          raised: "#111827",
-          overlay: "#1a2235",
-          border: "#232f45",
+          DEFAULT: "#0a0a0a",
+          raised: "#111111",
+          overlay: "#161616",
+          border: "#222222",
         },
       },
       fontFamily: {

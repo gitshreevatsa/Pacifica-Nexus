@@ -68,10 +68,8 @@ function MarketTab({
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 px-3 py-2 rounded text-[11.5px] font-mono whitespace-nowrap border transition-all shrink-0",
-        selected
-          ? "bg-electric/20 border-electric/50 text-electric-300"
-          : "bg-surface-raised border-surface-border text-slate-400 hover:border-slate-500 hover:text-slate-200"
+        "flex items-center gap-1.5 px-3 py-2 rounded text-[11.5px] font-mono whitespace-nowrap shrink-0",
+        selected ? "market-tab-selected" : "market-tab"
       )}
     >
       <span className="font-semibold text-white">{symbol}</span>
@@ -127,21 +125,23 @@ export default function PriceChart() {
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#080B14" },
-        textColor: "#64748b",
+        background: { type: ColorType.Solid, color: "#080808" },
+        textColor: "#475569",
       },
       grid: {
-        vertLines: { color: "#1a2235" },
-        horzLines: { color: "#1a2235" },
+        vertLines: { color: "rgba(255,255,255,0.04)" },
+        horzLines: { color: "rgba(255,255,255,0.04)" },
       },
       crosshair: {
         vertLine: { color: "#0062FF", labelBackgroundColor: "#0062FF" },
         horzLine: { color: "#0062FF", labelBackgroundColor: "#0062FF" },
       },
-      rightPriceScale: { borderColor: "#1a2235", scaleMargins: { top: 0.06, bottom: 0.06 } },
-      timeScale: { borderColor: "#1a2235", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "transparent", scaleMargins: { top: 0.06, bottom: 0.06 } },
+      timeScale: { borderColor: "transparent", timeVisible: true, secondsVisible: false },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
+      height: chartContainerRef.current.clientHeight - 8,
     });
 
     const candleSeries = chart.addCandlestickSeries({
@@ -151,6 +151,9 @@ export default function PriceChart() {
       borderDownColor: "#FF3B5C",
       wickUpColor: "#00C96C",
       wickDownColor: "#CC2F4A",
+      priceLineColor: "rgba(255,255,255,0.15)",
+      priceLineWidth: 1,
+      lastValueVisible: true,
     });
 
     chartRef.current = chart;
@@ -160,7 +163,7 @@ export default function PriceChart() {
       if (chartContainerRef.current) {
         chart.applyOptions({
           width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
+          height: chartContainerRef.current.clientHeight - 8,
         });
       }
     });
@@ -183,7 +186,7 @@ export default function PriceChart() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Market tabs + search */}
-      <div className="border-b border-surface-border shrink-0">
+      <div className="shrink-0">
         {/* Search bar */}
         <div className="px-3 pt-2 pb-1.5">
           <div className="relative">
@@ -193,7 +196,8 @@ export default function PriceChart() {
               value={marketSearch}
               onChange={(e) => setMarketSearch(e.target.value)}
               placeholder="Search markets…"
-              className="w-full bg-surface-raised border border-surface-border rounded-md pl-6 pr-3 py-1.5 text-[11px] font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-electric/50"
+              className="w-full text-white text-[11px] font-mono rounded-lg pl-6 pr-3 py-1.5 focus:outline-none placeholder:text-slate-600"
+              style={{ background: "rgba(255,255,255,0.06)" }}
             />
           </div>
         </div>
@@ -219,7 +223,7 @@ export default function PriceChart() {
 
       {/* Mark price + stats row */}
       {activeMarket && (
-        <div className="flex items-center gap-4 px-4 py-1 border-b border-surface-border flex-wrap shrink-0">
+        <div className="flex items-center gap-4 px-4 py-1 flex-wrap shrink-0">
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-mono font-bold text-white">
               {formatUSD(activeMarket.markPrice)}
@@ -267,12 +271,11 @@ export default function PriceChart() {
               <button
                 key={iv}
                 onClick={() => setSelectedInterval(iv)}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[10px] font-mono transition-colors",
-                  selectedInterval === iv
-                    ? "bg-electric/20 text-electric-300"
-                    : "text-slate-500 hover:text-slate-300"
-                )}
+                className="px-2 py-0.5 rounded text-[10px] font-mono transition-all duration-150"
+                style={selectedInterval === iv
+                  ? { background: "rgba(0,98,255,0.2)", color: "#4d8fff" }
+                  : { color: "#475569" }
+                }
               >
                 {iv}
               </button>

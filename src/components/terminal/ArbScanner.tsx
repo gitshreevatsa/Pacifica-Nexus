@@ -23,13 +23,13 @@ function jupiterUrl(symbol: string) {
 
 function RecBadge({ rec }: { rec: ArbOpportunity["recommendation"] }) {
   const map = {
-    OPEN:    "bg-neon-green/10 text-neon-green border-neon-green/30",
-    MONITOR: "bg-warning/10 text-warning border-warning/30",
-    AVOID:   "bg-slate-500/10 text-slate-400 border-slate-500/30",
+    OPEN:    "bg-neon-green/10 text-neon-green",
+    MONITOR: "bg-warning/10 text-warning",
+    AVOID:   "bg-white/5 text-slate-500",
   };
   const labels = { OPEN: "Open Now", MONITOR: "Monitor", AVOID: "Avoid" };
   return (
-    <span className={cn("text-[10px] font-mono px-2 py-0.5 rounded border font-semibold", map[rec])}>
+    <span className={cn("text-[10px] font-mono px-2 py-0.5 rounded font-semibold", map[rec])}>
       {labels[rec]}
     </span>
   );
@@ -50,22 +50,27 @@ function ArbRow({
 }) {
   const isContango = snapshot.direction === "CONTANGO";
   const isPos = opportunity.annualizedYield > 0;
+  const isHighYield = opportunity.annualizedYield > 15;
+  const isOpen = opportunity.recommendation === "OPEN";
 
   return (
-    <div className={cn(
-      "rounded-lg border p-3 transition-all hover:border-electric/40",
-      opportunity.recommendation === "OPEN"
-        ? "border-neon-green/30 bg-neon-green/5"
-        : "border-surface-border bg-surface-raised"
-    )}>
+    <div
+      className="rounded-xl p-3 transition-all duration-150"
+      style={{
+        background: isOpen ? "rgba(0,255,135,0.04)" : "rgba(255,255,255,0.02)",
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-white">{snapshot.perpSymbol}</span>
-          <span className={cn(
-            "text-[10px] px-1.5 py-0.5 rounded font-mono",
-            isContango ? "bg-electric/10 text-electric-300" : "bg-warning/10 text-warning"
-          )}>
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+            style={isContango
+              ? { background: "rgba(0,98,255,0.1)", color: "#4d8fff" }
+              : { background: "rgba(255,184,0,0.1)", color: "#ffb800" }
+            }
+          >
             {snapshot.direction}
           </span>
         </div>
@@ -75,28 +80,31 @@ function ArbRow({
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2 mb-3">
         <div>
-          <p className="text-[9px] text-slate-500 uppercase">Funding/h</p>
+          <p className="term-label mb-0.5">Funding/h</p>
           <p className={cn("text-xs font-mono font-semibold",
             snapshot.fundingRate > 0 ? "text-neon-green" : "text-danger")}>
             {snapshot.fundingRate > 0 ? "+" : ""}{(snapshot.fundingRate * 100).toFixed(4)}%
           </p>
         </div>
         <div>
-          <p className="text-[9px] text-slate-500 uppercase">Ann. Yield</p>
-          <p className={cn("text-xs font-mono font-bold", isPos ? "text-neon-green" : "text-danger")}>
+          <p className="term-label mb-0.5">Ann. Yield</p>
+          <p className={cn(
+            "text-xs font-mono font-bold",
+            isHighYield ? "apy-glow" : isPos ? "text-neon-green" : "text-danger"
+          )}>
             {isPos ? "+" : ""}{opportunity.annualizedYield.toFixed(1)}%
           </p>
         </div>
         <div>
-          <p className="text-[9px] text-slate-500 uppercase">Basis</p>
+          <p className="term-label mb-0.5">Basis</p>
           <p className={cn("text-xs font-mono", snapshot.basis > 0 ? "text-slate-300" : "text-warning")}>
             {snapshot.basis > 0 ? "+" : ""}{formatUSD(snapshot.basis)}
           </p>
         </div>
         <div>
-          <p className="text-[9px] text-slate-500 uppercase">Risk</p>
+          <p className="term-label mb-0.5">Risk</p>
           <div className="flex items-center gap-1 mt-0.5">
-            <div className="flex-1 h-1 bg-surface-border rounded-full overflow-hidden">
+            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
               <div
                 className={cn("h-full rounded-full",
                   opportunity.riskScore < 40 ? "bg-neon-green" :
@@ -111,14 +119,17 @@ function ArbRow({
       </div>
 
       {/* Spot vs Perp price bar */}
-      <div className="flex items-center justify-between text-[10px] text-slate-500 mb-3 bg-surface-overlay rounded px-2 py-1.5">
+      <div
+        className="flex items-center justify-between text-[10px] text-slate-500 mb-3 rounded-lg px-2 py-1.5"
+        style={{ background: "rgba(255,255,255,0.03)" }}
+      >
         <div className="flex items-center gap-2">
           <span>SPOT</span>
           <span className="font-mono text-slate-300">{formatUSD(snapshot.spotPrice)}</span>
         </div>
         <div className="flex items-center gap-1">
           {isContango ? (
-            <TrendingUp className="w-3 h-3 text-electric-300" />
+            <TrendingUp className="w-3 h-3" style={{ color: "#4d8fff" }} />
           ) : (
             <TrendingDown className="w-3 h-3 text-warning" />
           )}
@@ -137,13 +148,11 @@ function ArbRow({
         onClick={() => onHedge(snapshot)}
         disabled={isHedging || opportunity.recommendation === "AVOID"}
         className={cn(
-          "w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-xs font-semibold border transition-all",
-          opportunity.recommendation === "OPEN"
-            ? "border-neon-green/50 text-neon-green hover:bg-neon-green/10 hover:shadow-neon"
-            : opportunity.recommendation === "MONITOR"
-            ? "border-warning/40 text-warning hover:bg-warning/10"
-            : "border-surface-border text-slate-600 cursor-not-allowed",
-          isHedging && "opacity-50 cursor-not-allowed"
+          "w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold",
+          opportunity.recommendation === "OPEN" ? "btn-ghost-blue" :
+          opportunity.recommendation === "MONITOR" ? "btn-ghost-warning" :
+          "btn-ghost-neutral cursor-not-allowed opacity-40",
+          isHedging ? "btn-scanning opacity-60 cursor-not-allowed" : ""
         )}
       >
         <Zap className="w-3 h-3" />
@@ -173,7 +182,7 @@ export default function ArbScanner() {
     (snap: FundingSnapshot) => {
       if (!keyStored) { showToast("Paste your Agent Key in the top bar first."); return; }
       if (!walletAddress) { showToast("Connect your wallet (top bar) before trading."); return; }
-      setPending(snap); // show confirm modal
+      setPending(snap);
     },
     [keyStored, walletAddress, showToast]
   );
@@ -196,48 +205,63 @@ export default function ArbScanner() {
   return (
     <div className="flex flex-col h-full relative">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
+      <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-electric animate-pulse-slow" />
+          <div className="w-1.5 h-1.5 rounded-full bg-electric animate-pulse" />
           <h2 className="text-sm font-semibold text-white">Arb Scanner</h2>
-          <span className="text-[10px] font-mono text-slate-500 bg-surface-overlay px-1.5 py-0.5 rounded">
+          <span
+            className="text-[10px] font-mono text-slate-500 px-1.5 py-0.5 rounded"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+          >
             Cash &amp; Carry
           </span>
         </div>
         <div className="flex items-center gap-2">
           {topOpportunity && (
-            <span className="text-[10px] font-mono text-neon-green bg-neon-green/10 px-2 py-0.5 rounded border border-neon-green/20">
+            <span className={cn(
+              "text-[10px] font-mono px-2 py-0.5 rounded",
+              topOpportunity.annualizedYield > 15
+                ? "apy-glow bg-neon-green/10"
+                : "text-neon-green bg-neon-green/5"
+            )}>
               Best: {topOpportunity.annualizedYield.toFixed(1)}% APY
             </span>
           )}
-          <button onClick={() => refetch()} className="text-slate-500 hover:text-electric transition-colors">
+          <button onClick={() => refetch()} className="text-slate-500 hover:text-white transition-colors">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* Strategy explainer */}
-      <div className="mx-4 mt-3 flex items-start gap-2 text-[10px] text-slate-500 bg-surface-overlay rounded-lg px-3 py-2 mb-3">
-        <Info className="w-3 h-3 shrink-0 mt-0.5 text-electric-300" />
+      <div
+        className="mx-4 mt-3 flex items-start gap-2 text-[10px] text-slate-500 rounded-lg px-3 py-2 mb-3"
+        style={{ background: "rgba(255,255,255,0.02)" }}
+      >
+        <Info className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#4d8fff" }} />
         <span>
-          <span className="text-electric-300 font-semibold">Cash &amp; Carry:</span>{" "}
-          Short perp on Pacifica + buy spot on Jupiter. You collect the funding rate paid by longs — market-neutral, no directional risk. <span className="text-warning">Ann. Yield</span> = hourly funding × 24h × 365.
+          <span className="font-semibold" style={{ color: "#4d8fff" }}>Cash &amp; Carry:</span>{" "}
+          Short perp on Pacifica + buy spot on Jupiter. You collect the funding rate paid by longs — market-neutral, no directional risk.{" "}
+          <span className="text-warning">Ann. Yield</span> = hourly funding × 24h × 365.
         </span>
       </div>
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 custom-scrollbar">
         {isLoading && Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-36 bg-surface-raised rounded-lg animate-pulse" />
+          <div key={i} className="h-36 rounded-xl animate-pulse" style={{ background: "rgba(255,255,255,0.03)" }} />
         ))}
 
         {error && (
-          <div className="flex flex-col gap-1 text-danger text-xs p-3 bg-danger/10 rounded-lg">
-            <div className="flex items-center gap-2">
+          <div
+            className="flex flex-col gap-1 text-xs p-3 rounded-xl"
+            style={{ background: "rgba(255,59,92,0.06)" }}
+          >
+            <div className="flex items-center gap-2 text-danger">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span className="font-medium">Failed to load market data</span>
             </div>
-            <span className="text-danger/70 font-mono pl-6 break-all">
+            <span className="font-mono text-xs pl-6 break-all" style={{ color: "rgba(255,59,92,0.7)" }}>
               {error instanceof Error ? error.message : String(error)}
             </span>
           </div>
@@ -263,7 +287,10 @@ export default function ArbScanner() {
       </div>
 
       {toastMsg && (
-        <div className="absolute bottom-4 left-4 right-4 bg-surface-overlay border border-electric/30 text-white text-xs rounded-lg px-3 py-2 animate-slide-up z-50 font-mono leading-relaxed">
+        <div
+          className="absolute bottom-4 left-4 right-4 text-white text-xs rounded-xl px-3 py-2 animate-slide-up z-50 font-mono"
+          style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)" }}
+        >
           {toastMsg}
         </div>
       )}
