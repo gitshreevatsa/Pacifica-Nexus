@@ -291,7 +291,8 @@ type Pending =
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AlphaFeed() {
-  const { openPosition, keyStored, walletAddress, markPrices } = usePacifica();
+  const { openPosition, keyStored, walletAddress, markPrices, markets } = usePacifica();
+  const pacificaSymbols = new Set(markets.map((m) => m.symbol.toUpperCase()));
 
   const {
     verifiedAlphas,
@@ -368,9 +369,12 @@ export default function AlphaFeed() {
       }
     : null;
 
-  // Social signals that are NOT already verified (avoid duplication)
-  const verifiedSymbols = new Set(verifiedAlphas.map((v) => v.symbol));
-  const pendingSocials  = socialSignals.filter((s) => !verifiedSymbols.has(s.symbol));
+  // Only show signals for tokens that are actually tradeable on Pacifica
+  const tradeableAlphas  = verifiedAlphas.filter((a) => pacificaSymbols.has(a.symbol.toUpperCase()));
+  const verifiedSymbols  = new Set(tradeableAlphas.map((v) => v.symbol));
+  const pendingSocials   = socialSignals.filter(
+    (s) => !verifiedSymbols.has(s.symbol) && pacificaSymbols.has(s.symbol.toUpperCase())
+  );
 
   return (
     <div className="flex flex-col h-full relative">
@@ -401,14 +405,14 @@ export default function AlphaFeed() {
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3 custom-scrollbar pt-3">
 
         {/* ── Verified Alpha section ── */}
-        {verifiedAlphas.length > 0 && (
+        {tradeableAlphas.length > 0 && (
           <div>
             <p className="term-label mb-2 flex items-center gap-1" style={{ color: "rgba(0,98,255,0.7)" }}>
               <CheckCircle2 className="w-2.5 h-2.5" />
-              Verified Alpha ({verifiedAlphas.length})
+              Verified Alpha ({tradeableAlphas.length})
             </p>
             <div className="space-y-2">
-              {verifiedAlphas.map((alpha) => (
+              {tradeableAlphas.map((alpha) => (
                 <VerifiedAlphaCard
                   key={alpha.id}
                   alpha={alpha}
@@ -424,7 +428,7 @@ export default function AlphaFeed() {
         <div>
           <p className="term-label mb-2 flex items-center gap-1">
             🐦 Social Signals
-            {verifiedAlphas.length > 0 && (
+            {tradeableAlphas.length > 0 && (
               <span className="text-slate-600 normal-case tracking-normal ml-1">
                 — awaiting whale confirmation
               </span>
@@ -447,7 +451,7 @@ export default function AlphaFeed() {
             </div>
           )}
 
-          {!isSocialLoading && !socialError && pendingSocials.length === 0 && verifiedAlphas.length === 0 && (
+          {!isSocialLoading && !socialError && pendingSocials.length === 0 && tradeableAlphas.length === 0 && (
             <p className="text-center text-slate-600 text-xs mt-8">No social signals found.</p>
           )}
 
