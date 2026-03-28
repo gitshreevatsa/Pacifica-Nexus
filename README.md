@@ -6,7 +6,7 @@
 
 Pacifica Nexus is a **professional trading terminal** built on top of the Pacifica Perpetual DEX on Solana. It is designed for traders who want more signal and less noise — combining real-time perpetual market data, large-trade whale detection, social trend analysis, and automated funding-rate arbitrage discovery into a single glassmorphic interface.
 
-Built for the **Pacifica Hackathon** under builder code **Pacifica-Nexus**.
+Built for the **Pacifica Hackathon** under builder code **POINTPULSE**.
 
 ---
 
