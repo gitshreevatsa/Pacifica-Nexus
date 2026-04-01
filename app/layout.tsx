@@ -7,7 +7,7 @@ import SolanaWalletProvider from "@/components/providers/SolanaWalletProvider";
 export const metadata: Metadata = {
   title: "Pacifica Nexus | Alpha Terminal",
   description:
-    "Actionable analytics terminal for the Pacifica Perpetual DEX. Powered by POINT_PULSE.",
+    "Actionable analytics terminal for the Pacifica Perpetual DEX.",
   icons: { icon: "/favicon.ico" },
 };
 

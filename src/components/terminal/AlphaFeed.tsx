@@ -397,7 +397,7 @@ export default function AlphaFeed() {
         </div>
         <p className="text-[10px] text-slate-500 mt-1">
           <span className="text-electric-300">VERIFIED</span> = Elfa social signal + Pacifica whale trade (&gt;$10k) aligned.{" "}
-          <span className="text-neon-green">Mirror Trade</span> opens via POINTPULSE.
+          <span className="text-neon-green">Mirror Trade</span> mirrors the whale position instantly.
         </p>
       </div>
 

@@ -196,11 +196,10 @@ export default function SessionBar() {
         {/* Brand */}
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 bg-gradient-electric rounded-lg flex items-center justify-center">
-            <span className="text-white text-xs font-black">PN</span>
+            <span className="text-white text-xs font-black">⚡</span>
           </div>
           <div>
             <h1 className="text-sm font-bold text-white tracking-tight">Pacifica Nexus</h1>
-            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">Builder: POINTPULSE</p>
           </div>
         </div>
 
@@ -237,9 +236,9 @@ export default function SessionBar() {
                 <AgentBadge publicKey={agentPublicKey} onClear={clearAgent} />
               ) : (
                 <button onClick={() => setShowModal(true)}
-                  className="flex items-center gap-1.5 bg-electric hover:bg-electric-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors shadow-electric">
+                  className="flex items-center gap-1.5 bg-electric hover:bg-electric-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors shadow-electric animate-pulse">
                   <Key className="w-3 h-3" />
-                  Agent Key
+                  Authorize Agent Key
                 </button>
               )}
 
@@ -258,6 +257,14 @@ export default function SessionBar() {
           )}
         </div>
       </header>
+
+      {/* Onboarding hint: wallet connected but no agent key yet */}
+      {connected && !keyStored && (
+        <div className="flex items-center gap-2 px-5 py-1.5 text-[10px] font-mono text-slate-400" style={{ background: "rgba(77,143,255,0.06)", borderBottom: "1px solid rgba(77,143,255,0.12)" }}>
+          <Key className="w-3 h-3 text-electric-300 shrink-0" />
+          <span>Wallet connected — next, click <span className="text-electric-300 font-semibold">Authorize Agent Key</span> to enable trading.</span>
+        </div>
+      )}
 
       {/* Step 1: Agent Key Registration Banner */}
       {hasAgent && !isCheckingAgentKey && !agentKeyRegistered && (
@@ -284,7 +291,7 @@ export default function SessionBar() {
           <div className="flex items-center gap-2 text-electric-300">
             <Zap className="w-3.5 h-3.5 shrink-0" />
             <span>
-              Approve <span className="font-bold text-white">POINTPULSE</span> builder code to enable trading rewards. One-time.
+              Approve <span className="font-bold text-white">Pacifica</span> builder code to enable trading rewards. One-time.
             </span>
           </div>
           <button onClick={() => approveBuilderCode().catch(console.error)}
