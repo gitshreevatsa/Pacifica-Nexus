@@ -387,6 +387,10 @@ export default function RiskGuard() {
     return Number(localStorage.getItem("nexus_auto_derisk_threshold") ?? 10);
   });
   const [showAutoConfig, setShowAutoConfig] = useState(false);
+  // Pending threshold — only committed to autoThreshold when user clicks "Set"
+  const [pendingThreshold, setPendingThreshold] = useState<string>(() =>
+    String(typeof window !== "undefined" ? (Number(localStorage.getItem("nexus_auto_derisk_threshold") ?? 10)) : 10)
+  );
   // Per-position cooldown: maps position.id → last auto-fire timestamp
   const autoFiredAt = useRef<Map<string, number>>(new Map());
 
@@ -426,10 +430,10 @@ export default function RiskGuard() {
     return dist < 10;
   }).length;
 
-  // Auto de-risk: watch positions, fire when dist-to-liq < threshold (60s cooldown per position)
+  // Auto de-risk: watch positions, fire when dist-to-liq < threshold (10s cooldown per position)
   useEffect(() => {
     if (!autoDeRisk || !keyStored || !walletAddress) return;
-    const COOLDOWN_MS = 60_000;
+    const COOLDOWN_MS = 10_000;
     openPositions.forEach((position) => {
       if (deRiskingId === position.id) return;
       const lastFired = autoFiredAt.current.get(position.id) ?? 0;
@@ -437,7 +441,9 @@ export default function RiskGuard() {
       const dist = position.markPrice > 0
         ? Math.abs(((position.liquidationPrice - position.markPrice) / position.markPrice) * 100)
         : 100;
-      if (dist < autoThreshold) {
+      // Skip if 25% of position rounds down to 0 (lot size ≥ 1 markets)
+      const deRiskAmt = Math.floor(position.size * 0.25);
+      if (dist < autoThreshold && deRiskAmt >= 1) {
         autoFiredAt.current.set(position.id, Date.now());
         deRisk25Pct(position)
           .then(() => showToast(`Auto de-risked ${position.symbol} (${dist.toFixed(1)}% to liq) ✓`))
@@ -507,7 +513,7 @@ export default function RiskGuard() {
               </button>
             </div>
             <p className="text-[10px] text-slate-500">
-              Trigger when dist-to-liq &lt; threshold. 60s cooldown per position.
+              Trigger when dist-to-liq &lt; threshold. 10s cooldown per position.
             </p>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-400 shrink-0">Trigger at</span>
@@ -515,12 +521,30 @@ export default function RiskGuard() {
                 type="number"
                 min={1}
                 max={50}
-                value={autoThreshold}
-                onChange={(e) => updateThreshold(Number(e.target.value))}
+                value={pendingThreshold}
+                onChange={(e) => setPendingThreshold(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const v = Number(pendingThreshold);
+                    if (v >= 1 && v <= 50) updateThreshold(v);
+                  }
+                }}
                 className="w-14 text-[11px] font-mono text-white rounded-lg px-2 py-1 text-center focus:outline-none"
                 style={{ background: "rgba(255,255,255,0.06)" }}
               />
-              <span className="text-[10px] text-slate-400">% dist. to liq.</span>
+              <span className="text-[10px] text-slate-400 shrink-0">% to liq.</span>
+              <button
+                onClick={() => {
+                  const v = Number(pendingThreshold);
+                  if (v >= 1 && v <= 50) updateThreshold(v);
+                }}
+                className="text-[10px] font-semibold px-2 py-1 rounded-lg transition-colors"
+                style={{ background: "rgba(255,184,0,0.15)", color: "#ffb800" }}
+                title="Apply threshold"
+              >
+                Set
+              </button>
+              <span className="text-[10px] font-mono text-slate-500">active: {autoThreshold}%</span>
             </div>
           </div>
         )}

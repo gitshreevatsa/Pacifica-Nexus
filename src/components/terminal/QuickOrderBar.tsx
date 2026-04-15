@@ -37,7 +37,9 @@ export default function QuickOrderBar() {
   }, []);
 
   const activeSymbol = symbol || markets[0]?.symbol || "";
+  const activeMarket = markets.find((m) => m.symbol === activeSymbol);
   const markPrice    = markPrices[activeSymbol] ?? 0;
+  const marketLotSize = activeMarket?.lotSize ?? 0.01;
   const equity       = accountHealth?.equity ?? 0;
 
   // Compute suggested size from % equity mode
@@ -309,6 +311,7 @@ export default function QuickOrderBar() {
           symbol={activeSymbol}
           side={side}
           markPrice={markPrice}
+          lotSize={marketLotSize}
           orderType={orderType}
           limitPrice={orderType === "limit" ? (parseFloat(limitPrice) || undefined) : undefined}
           tpPrice={parseFloat(tpPrice) || undefined}

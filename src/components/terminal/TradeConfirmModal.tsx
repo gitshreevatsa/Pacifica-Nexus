@@ -30,10 +30,14 @@ export interface TradeConfirmProps {
   isExecuting?: boolean;
 }
 
-const PRESET_UNITS = [0.01, 0.1, 1, 10];
 const TAKER_FEE_PCT = 0.0005; // 0.05% taker fee (standard for Pacifica perps)
 const DEFAULT_LEVERAGE = 10;
 const MMR = 0.005;
+
+/** Build 4 sensible preset multiples of the given lot size. */
+function buildPresets(lotSize: number): number[] {
+  return [1, 5, 10, 50].map((m) => lotSize * m);
+}
 
 function snapToLot(value: number, lotSize: number): number {
   return Math.round(value / lotSize) * lotSize;
@@ -51,9 +55,10 @@ export default function TradeConfirmModal({
   orderType = "market", limitPrice, tpPrice, slPrice, defaultUnits,
   onConfirm, onCancel, isExecuting,
 }: TradeConfirmProps) {
+  const presets = buildPresets(lotSize);
   const initUnits = defaultUnits != null && defaultUnits >= lotSize
     ? String(snapToLot(defaultUnits, lotSize))
-    : String(PRESET_UNITS[1]);
+    : String(presets[0]);
 
   const [unitInput, setUnitInput] = useState(initUnits);
   const isLong = side === "LONG";
@@ -125,7 +130,7 @@ export default function TradeConfirmModal({
           <div>
             <label className="term-label block mb-2">Amount ({symbol})</label>
             <div className="grid grid-cols-4 gap-1.5 mb-2">
-              {PRESET_UNITS.map((amt) => (
+              {presets.map((amt: number) => (
                 <button key={amt}
                   onClick={() => selectPreset(amt)}
                   className="py-1.5 rounded-lg text-xs font-bold transition-all duration-150"

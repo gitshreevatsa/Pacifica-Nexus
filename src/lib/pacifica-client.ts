@@ -113,6 +113,7 @@ function mergeMarket(info: MarketInfo, price: MarketPrice): Market {
     priceChange24h,
     maxLeverage:     info.max_leverage,
     minOrderSize:    parseFloat(info.min_order_size),
+    lotSize:         parseFloat(info.lot_size) || 0.01,
   };
 }
 
@@ -183,6 +184,30 @@ export interface OrderParams {
   tif?:        TIF;
   reduceOnly?: boolean;
   slippage?:   string;
+  lotSize?:    number;   // snap size to this before sending
+}
+
+/**
+ * Snap a size to the nearest lot-size multiple, formatted as a string.
+ * Throws if the result is zero (input smaller than half a lot).
+ */
+function snapAmount(size: number, lotSize: number): string {
+  const snapped = Math.round(size / lotSize) * lotSize;
+  if (snapped <= 0) {
+    throw new Error(`Size ${size} is below minimum lot size ${lotSize}. Enter at least ${lotSize} units.`);
+  }
+  const decimals = lotSize >= 1 ? 0 : Math.max(0, -Math.floor(Math.log10(lotSize)));
+  return snapped.toFixed(Math.min(decimals, 8));
+}
+
+/**
+ * Extract lot size from a Pacifica "not a multiple of lot size X" error message.
+ * Returns null if the error isn't a lot-size rejection.
+ */
+function parseLotSizeError(err: unknown): number | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  const match = msg.match(/lot size (\d+\.?\d*)/i);
+  return match ? parseFloat(match[1]) : null;
 }
 
 export class PacificaClient {
@@ -405,44 +430,65 @@ export class PacificaClient {
   /** Market order — POST /orders/create_market */
   async createMarketOrder(params: OrderParams): Promise<{ order_id: number }> {
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
-    const amount = String(parseFloat(params.size.toFixed(2)));
 
-    // Only include reduce_only when it is explicitly true.
-    // Including reduce_only:false in the signed payload causes a signature
-    // mismatch if the Pacifica server omits the field when verifying normal orders.
-    const operationData: Record<string, unknown> = {
-      symbol:           params.symbol,
-      amount,
-      side,
-      slippage_percent: params.slippage ?? DEFAULT_SLIPPAGE,
-      builder_code:     BUILDER_CODE,
+    const attempt = (lotSize: number) => {
+      const amount = snapAmount(params.size, lotSize);
+      // Only include reduce_only when true — including false causes signature mismatch.
+      const data: Record<string, unknown> = {
+        symbol:           params.symbol,
+        amount,
+        side,
+        slippage_percent: params.slippage ?? DEFAULT_SLIPPAGE,
+        builder_code:     BUILDER_CODE,
+      };
+      if (params.reduceOnly) data.reduce_only = true;
+      console.debug("[Pacifica] createMarketOrder →", { symbol: params.symbol, side, amount, lotSize });
+      return post<{ order_id: number }>("/orders/create_market", this.signed("create_market_order", data));
     };
-    if (params.reduceOnly) operationData.reduce_only = true;
 
-    const body = this.signed("create_market_order", operationData);
-    console.debug("[Pacifica] createMarketOrder →", { symbol: params.symbol, side, amount, reduce_only: params.reduceOnly ?? false });
-    return post<{ order_id: number }>("/orders/create_market", body);
+    try {
+      return await attempt(params.lotSize ?? 0.01);
+    } catch (e) {
+      // Auto-correct lot size from server error message and retry once
+      const serverLotSize = parseLotSizeError(e);
+      if (serverLotSize) {
+        console.debug("[Pacifica] Retrying market order with server lot size:", serverLotSize);
+        return attempt(serverLotSize);
+      }
+      throw e;
+    }
   }
 
   /** Limit order — POST /orders/create */
   async createLimitOrder(params: OrderParams): Promise<{ order_id: number }> {
     if (!params.price) throw new Error("Price required for limit orders");
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
-    const amount = String(parseFloat(params.size.toFixed(2)));
 
-    const operationData: Record<string, unknown> = {
-      symbol:       params.symbol,
-      price:        String(parseFloat(params.price.toFixed(2))),
-      amount,
-      side,
-      tif:          params.tif ?? "GTC",
-      builder_code: BUILDER_CODE,
+    const attempt = (lotSize: number) => {
+      const amount = snapAmount(params.size, lotSize);
+      const data: Record<string, unknown> = {
+        symbol:       params.symbol,
+        price:        String(parseFloat(params.price!.toFixed(2))),
+        amount,
+        side,
+        tif:          params.tif ?? "GTC",
+        builder_code: BUILDER_CODE,
+      };
+      if (params.reduceOnly) data.reduce_only = true;
+      console.debug("[Pacifica] createLimitOrder →", { symbol: params.symbol, side, amount, price: params.price, lotSize });
+      return post<{ order_id: number }>("/orders/create", this.signed("create_order", data));
     };
-    if (params.reduceOnly) operationData.reduce_only = true;
 
-    const body = this.signed("create_order", operationData);
-    console.debug("[Pacifica] createLimitOrder →", { symbol: params.symbol, side, amount, price: params.price, reduce_only: params.reduceOnly ?? false });
-    return post<{ order_id: number }>("/orders/create", body);
+    try {
+      return await attempt(params.lotSize ?? 0.01);
+    } catch (e) {
+      const serverLotSize = parseLotSizeError(e);
+      if (serverLotSize) {
+        console.debug("[Pacifica] Retrying limit order with server lot size:", serverLotSize);
+        return attempt(serverLotSize);
+      }
+      throw e;
+    }
   }
 
   /** Close position = reduce-only order on the opposite side */

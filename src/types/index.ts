@@ -64,6 +64,7 @@ export interface Market {
   priceChange24h: number;      // % vs yesterday
   maxLeverage: number;
   minOrderSize: number;        // USD
+  lotSize: number;             // minimum tradeable increment in base units
 }
 
 /** GET /api/v1/kline */

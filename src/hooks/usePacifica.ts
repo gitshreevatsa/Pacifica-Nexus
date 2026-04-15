@@ -239,21 +239,25 @@ export function usePacifica(): UsePacificaReturn {
   // ── Trade mutations ────────────────────────────────────────────────────────
   const openMutation = useMutation({
     mutationFn: async (p: OpenPositionParams) => {
+      // Resolve lot size from market data so amounts are snapped correctly
+      const market   = markets.find((m) => m.symbol === p.symbol);
+      const lotSize  = market?.lotSize ?? 0.01;
+
       // Main order — market or limit
       const result = p.orderType === "limit"
-        ? await client.createLimitOrder({ symbol: p.symbol, side: p.side, size: p.size, price: p.price })
-        : await client.createMarketOrder({ symbol: p.symbol, side: p.side, size: p.size, slippage: p.slippage });
+        ? await client.createLimitOrder({ symbol: p.symbol, side: p.side, size: p.size, price: p.price, lotSize })
+        : await client.createMarketOrder({ symbol: p.symbol, side: p.side, size: p.size, slippage: p.slippage, lotSize });
 
       // Bracket orders: TP and SL as reduce-only limit orders on the opposite side
       const oppSide = p.side === "LONG" ? "SHORT" : "LONG";
       if (p.tpPrice && p.tpPrice > 0) {
         try {
-          await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.tpPrice, reduceOnly: true });
+          await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.tpPrice, reduceOnly: true, lotSize });
         } catch (e) { console.warn("[Nexus] TP order failed:", e); }
       }
       if (p.slPrice && p.slPrice > 0) {
         try {
-          await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.slPrice, reduceOnly: true });
+          await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.slPrice, reduceOnly: true, lotSize });
         } catch (e) { console.warn("[Nexus] SL order failed:", e); }
       }
       return result;
@@ -336,14 +340,20 @@ export function usePacifica(): UsePacificaReturn {
   );
 
   const deRisk25Pct = useCallback(
-    (position: Position) =>
-      closeMutation.mutateAsync({
+    (position: Position) => {
+      const market  = markets.find((m) => m.symbol === position.symbol);
+      const lotSize = market?.lotSize ?? 1;
+      // Snap to nearest lot size multiple; minimum 1 lot
+      const raw     = position.size * 0.25;
+      const snapped = Math.max(lotSize, Math.floor(raw / lotSize) * lotSize);
+      return closeMutation.mutateAsync({
         symbol:      position.symbol,
         side:        position.side,
         currentSize: position.size,
-        size:        position.size * 0.25,
-      }),
-    [closeMutation]
+        size:        snapped,
+      });
+    },
+    [closeMutation, markets]
   );
 
   const cancelOrder = useCallback(
