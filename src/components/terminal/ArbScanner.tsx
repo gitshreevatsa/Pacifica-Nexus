@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { TrendingUp, TrendingDown, Zap, RefreshCw, Info, AlertCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Zap, RefreshCw, AlertCircle } from "lucide-react";
 import { useArbScanner } from "@/hooks/useArbScanner";
 import { usePacifica } from "@/hooks/usePacifica";
 import type { FundingSnapshot, ArbOpportunity } from "@/types";
@@ -233,18 +233,11 @@ export default function ArbScanner() {
         </div>
       </div>
 
-      {/* Strategy explainer */}
-      <div
-        className="mx-4 mt-3 flex items-start gap-2 text-[10px] text-slate-500 rounded-lg px-3 py-2 mb-3"
-        style={{ background: "rgba(255,255,255,0.02)" }}
-      >
-        <Info className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "#4d8fff" }} />
-        <span>
-          <span className="font-semibold" style={{ color: "#4d8fff" }}>Cash &amp; Carry:</span>{" "}
-          Short perp on Pacifica + buy spot on Jupiter. You collect the funding rate paid by longs — market-neutral, no directional risk.{" "}
-          <span className="text-warning">Ann. Yield</span> = hourly funding × 24h × 365.
-        </span>
-      </div>
+      {/* Strategy hint — compact */}
+      <p className="px-4 pb-2 text-[10px] text-slate-600">
+        Short perp + long spot · collect funding · market-neutral.
+        <span className="text-electric-300 ml-1">Ann. Yield = funding/h × 8760.</span>
+      </p>
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 custom-scrollbar">

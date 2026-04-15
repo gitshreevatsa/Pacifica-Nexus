@@ -25,6 +25,7 @@ import {
   type AgentKeypair,
 } from "@/lib/signing";
 import type { Position, PacificaOrder, AccountHealth, Market } from "@/types";
+import { useTradeLogStore } from "@/stores/tradeLogStore";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
@@ -236,13 +237,40 @@ export function usePacifica(): UsePacificaReturn {
   const openMutation = useMutation({
     mutationFn: (p: OpenPositionParams) =>
       client.createMarketOrder({ symbol: p.symbol, side: p.side, size: p.size, slippage: p.slippage }),
-    onSuccess: invalidateTrades,
+    onSuccess: (result, p) => {
+      invalidateTrades();
+      const price = markPrices[p.symbol] ?? 0;
+      useTradeLogStore.getState().addEntry({
+        symbol: p.symbol,
+        side: p.side,
+        size: p.size,
+        price,
+        notional: p.size * price,
+        type: "OPEN",
+        timestamp: Date.now(),
+        orderId: result.order_id,
+      });
+    },
   });
 
   const closeMutation = useMutation({
     mutationFn: (p: ClosePositionParams) =>
       client.closePosition(p.symbol, p.side, p.size ?? p.currentSize),
-    onSuccess: invalidateTrades,
+    onSuccess: (result, p) => {
+      invalidateTrades();
+      const price = markPrices[p.symbol] ?? 0;
+      const size = p.size ?? p.currentSize;
+      useTradeLogStore.getState().addEntry({
+        symbol: p.symbol,
+        side: p.side,
+        size,
+        price,
+        notional: size * price,
+        type: p.size && p.size < p.currentSize ? "DE-RISK" : "CLOSE",
+        timestamp: Date.now(),
+        orderId: result.order_id,
+      });
+    },
   });
 
   const cancelMutation = useMutation({

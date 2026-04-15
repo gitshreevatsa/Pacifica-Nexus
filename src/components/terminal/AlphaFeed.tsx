@@ -268,6 +268,65 @@ function SocialCard({
 
 // ─── WS status dot ────────────────────────────────────────────────────────────
 
+// ─── Whale Heatmap ────────────────────────────────────────────────────────────
+
+function WhaleHeatmap({ events }: { events: import("@/types").WhaleEvent[] }) {
+  const now = Date.now();
+  const recent = events.filter((e) => now - e.timestamp < 60 * 60 * 1000);
+  if (recent.length === 0) return null;
+
+  type Bucket = { notional: number; longs: number; shorts: number };
+  const bySymbol = recent.reduce<Record<string, Bucket>>((acc, e) => {
+    if (!acc[e.symbol]) acc[e.symbol] = { notional: 0, longs: 0, shorts: 0 };
+    acc[e.symbol].notional += e.notional;
+    if (e.side === "LONG") acc[e.symbol].longs += e.notional;
+    else acc[e.symbol].shorts += e.notional;
+    return acc;
+  }, {});
+
+  const top5 = Object.entries(bySymbol)
+    .sort((a, b) => b[1].notional - a[1].notional)
+    .slice(0, 5);
+
+  const maxNotional = top5[0]?.[1].notional || 1;
+
+  return (
+    <div className="mb-3 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+      <p className="term-label mb-2">Whale Heat · 1h</p>
+      <div className="space-y-1.5">
+        {top5.map(([symbol, data]) => {
+          const longPct = data.notional > 0 ? (data.longs / data.notional) * 100 : 50;
+          const barW = (data.notional / maxNotional) * 100;
+          return (
+            <div key={symbol} className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-slate-300 w-9 shrink-0">{symbol}</span>
+              <div className="flex-1 h-2.5 rounded-sm overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                <div style={{ width: `${barW}%`, height: "100%", display: "flex" }}>
+                  <div style={{ width: `${longPct}%`, background: "rgba(0,255,135,0.45)" }} />
+                  <div style={{ width: `${100 - longPct}%`, background: "rgba(255,59,92,0.4)" }} />
+                </div>
+              </div>
+              <span className="text-[9px] font-mono text-slate-500 w-12 text-right shrink-0">
+                {formatNotional(data.notional)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3 mt-2">
+        <span className="flex items-center gap-1 text-[9px] font-mono text-slate-600">
+          <span className="w-2 h-2 rounded-sm inline-block" style={{ background: "rgba(0,255,135,0.45)" }} />
+          Long
+        </span>
+        <span className="flex items-center gap-1 text-[9px] font-mono text-slate-600">
+          <span className="w-2 h-2 rounded-sm inline-block" style={{ background: "rgba(255,59,92,0.4)" }} />
+          Short
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function WsStatusDot({ connected }: { connected: boolean }) {
   return (
     <span className={cn(
@@ -297,6 +356,7 @@ export default function AlphaFeed() {
   const {
     verifiedAlphas,
     socialSignals,
+    whaleEvents,
     isWsConnected,
     isSocialLoading,
     socialError,
@@ -403,6 +463,9 @@ export default function AlphaFeed() {
 
       {/* Scroll body */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3 custom-scrollbar pt-3">
+
+        {/* ── Whale Heatmap ── */}
+        <WhaleHeatmap events={whaleEvents} />
 
         {/* ── Verified Alpha section ── */}
         {tradeableAlphas.length > 0 && (

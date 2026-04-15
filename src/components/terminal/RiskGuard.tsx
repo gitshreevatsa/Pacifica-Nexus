@@ -6,11 +6,11 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
-import { Shield, AlertTriangle, TrendingDown, Activity } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Shield, AlertTriangle, TrendingDown, Activity, Layers } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
 import type { Position, AccountHealth } from "@/types";
-import { cn, formatUSD, formatPct } from "@/lib/utils";
+import { cn, formatUSD } from "@/lib/utils";
 
 // ─── Segmented Health Bar ─────────────────────────────────────────────────────
 
@@ -166,6 +166,210 @@ function PositionRow({
   );
 }
 
+// ─── PnL Sparkline ────────────────────────────────────────────────────────────
+
+function PnlSparkline({ currentPnl }: { currentPnl: number }) {
+  const [samples, setSamples] = useState<number[]>([currentPnl]);
+  const prevRef = useRef(currentPnl);
+
+  useEffect(() => {
+    if (currentPnl === prevRef.current) return;
+    prevRef.current = currentPnl;
+    setSamples((prev) => [...prev, currentPnl].slice(-50));
+  }, [currentPnl]);
+
+  if (samples.length < 2) return null;
+
+  const min = Math.min(...samples);
+  const max = Math.max(...samples);
+  const range = max - min || 1;
+  const W = 100;
+  const H = 32;
+
+  const pts = samples
+    .map((v, i) => {
+      const x = (i / (samples.length - 1)) * W;
+      const y = H - ((v - min) / range) * (H - 2) - 1;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const last = samples[samples.length - 1];
+  const isUp = last >= 0;
+  const color = isUp ? "#00ff87" : "#ff3b5c";
+
+  // Filled area path: go down to bottom-right, across to bottom-left, close
+  const firstX = 0;
+  const lastX = W;
+  const fillPts = `${firstX},${H} ${pts} ${lastX},${H}`;
+
+  return (
+    <div className="mb-3 rounded-xl p-2.5" style={{ background: "rgba(255,255,255,0.02)" }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="term-label">Session PnL Curve</p>
+        <span className={cn("text-[10px] font-mono font-semibold", isUp ? "text-neon-green" : "text-danger")}>
+          {last >= 0 ? "+" : ""}{formatUSD(last)}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 32, display: "block" }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="pnl-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={fillPts} fill="url(#pnl-grad)" />
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        {min < 0 && max > 0 && (
+          <line
+            x1="0" y1={H - ((0 - min) / range) * (H - 2) - 1}
+            x2={W} y2={H - ((0 - min) / range) * (H - 2) - 1}
+            stroke="rgba(255,255,255,0.12)" strokeWidth="0.5" strokeDasharray="2,2"
+          />
+        )}
+      </svg>
+    </div>
+  );
+}
+
+// ─── Liquidation Heatmap ──────────────────────────────────────────────────────
+
+/**
+ * Shows all open positions as marks on a shared price axis.
+ * Green/blue line = mark price, red line = liquidation price.
+ * Glows red when distance-to-liq < 10 %.
+ */
+function LiqHeatmap({ positions }: { positions: Position[] }) {
+  if (positions.length === 0) return null;
+
+  // Collect every relevant price to build the axis range
+  const allPrices = positions
+    .flatMap((p) => [p.markPrice, p.liquidationPrice])
+    .filter((v) => v > 0);
+
+  if (allPrices.length === 0) return null;
+
+  const minP  = Math.min(...allPrices) * 0.94;
+  const maxP  = Math.max(...allPrices) * 1.06;
+  const range = maxP - minP || 1;
+
+  const toX = (price: number) =>
+    Math.min(100, Math.max(0, ((price - minP) / range) * 100));
+
+  return (
+    <div className="mb-3 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+      {/* Header */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <Layers className="w-3 h-3 text-electric-300 shrink-0" />
+        <p className="term-label">Liquidation Price Map</p>
+      </div>
+
+      {/* Per-position row */}
+      <div className="space-y-2">
+        {positions.map((pos) => {
+          const distToLiq =
+            pos.markPrice > 0
+              ? Math.abs(((pos.liquidationPrice - pos.markPrice) / pos.markPrice) * 100)
+              : 100;
+          const isAtRisk = distToLiq < 10;
+          const isLong   = pos.side === "LONG";
+          const markX    = toX(pos.markPrice);
+          const liqX     = toX(pos.liquidationPrice);
+
+          return (
+            <div key={pos.id}>
+              {/* Label */}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  {isAtRisk && <AlertTriangle className="w-2.5 h-2.5 text-danger" />}
+                  <span className="text-[10px] font-semibold text-white">
+                    {pos.symbol.replace("-PERP", "")}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[9px] font-mono px-1 rounded",
+                      isLong ? "text-neon-green bg-neon-green/10" : "text-danger bg-danger/10"
+                    )}
+                  >
+                    {pos.side}
+                  </span>
+                </div>
+                <span
+                  className={cn(
+                    "text-[9px] font-mono font-semibold",
+                    isAtRisk ? "danger-glow" : "text-slate-500"
+                  )}
+                >
+                  {distToLiq.toFixed(1)}% to liq
+                </span>
+              </div>
+
+              {/* Bar */}
+              <div
+                className="relative h-2 w-full rounded-full overflow-visible"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                {/* Filled zone between mark and liq */}
+                <div
+                  className="absolute top-0 h-full rounded-full"
+                  style={{
+                    left:       `${Math.min(markX, liqX)}%`,
+                    width:      `${Math.abs(markX - liqX)}%`,
+                    background: isAtRisk
+                      ? "rgba(255,59,92,0.2)"
+                      : "rgba(255,255,255,0.05)",
+                  }}
+                />
+                {/* Mark price pin */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3 rounded-full"
+                  style={{
+                    left:       `${markX}%`,
+                    background: isLong ? "#00ff87" : "rgba(0,98,255,0.8)",
+                  }}
+                  title={`Mark: ${formatUSD(pos.markPrice)}`}
+                />
+                {/* Liquidation price pin */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3 rounded-full"
+                  style={{
+                    left:       `${liqX}%`,
+                    background: isAtRisk ? "#ff3b5c" : "rgba(255,59,92,0.6)",
+                    boxShadow:  isAtRisk ? "0 0 6px rgba(255,59,92,0.9)" : undefined,
+                  }}
+                  title={`Liq: ${formatUSD(pos.liquidationPrice)}`}
+                />
+              </div>
+
+              {/* Price labels */}
+              <div className="flex justify-between mt-0.5">
+                <span className="text-[9px] font-mono text-slate-600">{formatUSD(minP)}</span>
+                <span className="text-[9px] font-mono text-slate-600">{formatUSD(maxP)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-0.5 rounded-full bg-neon-green" />
+          <span className="text-[9px] font-mono text-slate-600">Mark (Long)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-0.5 rounded-full" style={{ background: "rgba(0,98,255,0.8)" }} />
+          <span className="text-[9px] font-mono text-slate-600">Mark (Short)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-0.5 rounded-full bg-danger" />
+          <span className="text-[9px] font-mono text-slate-600">Liquidation</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function RiskGuard() {
@@ -237,6 +441,7 @@ export default function RiskGuard() {
             <SegmentedBar marginRatio={accountHealth.marginRatio} />
             <div className="mt-3">
               <AccountStats health={accountHealth} />
+              <PnlSparkline currentPnl={accountHealth.unrealizedPnl} />
             </div>
           </div>
         ) : (
@@ -249,6 +454,9 @@ export default function RiskGuard() {
             </div>
           </div>
         )}
+
+        {/* Liquidation Heatmap */}
+        <LiqHeatmap positions={openPositions} />
 
         {/* Positions list */}
         <p className="term-label mb-2">Open Positions ({openPositions.length})</p>

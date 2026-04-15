@@ -20,10 +20,17 @@ import {
   Copy,
   X,
   Wallet,
+  Bell,
+  BellRing,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
+import { useFundingAlertStore } from "@/stores/fundingAlertStore";
+import { useFundingAlerts } from "@/hooks/useFundingAlerts";
 import { truncateAddress, formatUSD } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import type { Market } from "@/types";
 
 // ─── Agent Key Modal ──────────────────────────────────────────────────────────
 
@@ -163,6 +170,189 @@ function AgentBadge({ publicKey, onClear }: { publicKey: string; onClear: () => 
   );
 }
 
+// ─── Funding Alerts Panel ────────────────────────────────────────────────────
+
+function FundingAlertsPanel({
+  markets,
+  onClose,
+}: {
+  markets: Market[];
+  onClose: () => void;
+}) {
+  const { alerts, addAlert, removeAlert } = useFundingAlertStore();
+  const [sym, setSym]       = useState(markets[0]?.symbol.replace("-PERP", "") ?? "");
+  const [threshold, setThreshold] = useState("0.01");
+  const [direction, setDirection] = useState<"above" | "below">("above");
+  const [err, setErr]       = useState("");
+
+  const handleAdd = () => {
+    const t = parseFloat(threshold);
+    if (!sym)        { setErr("Choose a symbol."); return; }
+    if (isNaN(t) || t <= 0) { setErr("Enter a valid threshold > 0."); return; }
+    addAlert({ symbol: sym, threshold: t / 100, direction }); // store as decimal
+    setErr("");
+  };
+
+  return (
+    <div
+      className="absolute top-full right-0 mt-1 w-80 rounded-2xl z-50 overflow-hidden animate-fade-in"
+      style={{ background: "rgba(10,10,10,0.97)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-2">
+          <BellRing className="w-3.5 h-3.5 text-electric-300" />
+          <span className="text-sm font-semibold text-white">Funding Alerts</span>
+        </div>
+        <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Add new alert */}
+      <div className="px-4 py-3 space-y-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider">New Alert</p>
+
+        <div className="flex gap-2">
+          {/* Symbol */}
+          <select
+            value={sym}
+            onChange={(e) => setSym(e.target.value)}
+            className="flex-1 text-[11px] font-mono text-white rounded-lg px-2 py-1.5 focus:outline-none appearance-none"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          >
+            {markets.map((m) => (
+              <option key={m.symbol} value={m.symbol.replace("-PERP", "")} style={{ background: "#0a0a0a" }}>
+                {m.symbol.replace("-PERP", "")}
+              </option>
+            ))}
+          </select>
+
+          {/* Direction */}
+          <select
+            value={direction}
+            onChange={(e) => setDirection(e.target.value as "above" | "below")}
+            className="text-[11px] font-mono text-white rounded-lg px-2 py-1.5 focus:outline-none appearance-none"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          >
+            <option value="above" style={{ background: "#0a0a0a" }}>Above</option>
+            <option value="below" style={{ background: "#0a0a0a" }}>Below</option>
+          </select>
+        </div>
+
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <input
+              type="number"
+              min="0"
+              step="0.001"
+              value={threshold}
+              onChange={(e) => { setThreshold(e.target.value); setErr(""); }}
+              placeholder="0.01"
+              className="w-full text-[11px] font-mono text-white rounded-lg px-2 py-1.5 pr-6 focus:outline-none"
+              style={{ background: "rgba(255,255,255,0.06)" }}
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">%/h</span>
+          </div>
+          <button
+            onClick={handleAdd}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-colors"
+            style={{ background: "rgba(0,98,255,0.2)", border: "1px solid rgba(0,98,255,0.3)" }}
+          >
+            <Plus className="w-3 h-3" />
+            Add
+          </button>
+        </div>
+
+        {err && <p className="text-[10px] text-danger">{err}</p>}
+      </div>
+
+      {/* Alert list */}
+      <div className="px-4 py-3 max-h-48 overflow-y-auto custom-scrollbar">
+        {alerts.length === 0 ? (
+          <p className="text-[10px] text-slate-600 text-center py-2">No alerts set.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {alerts.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between rounded-lg px-2.5 py-1.5"
+                style={{ background: a.triggered ? "rgba(255,184,0,0.06)" : "rgba(255,255,255,0.03)" }}
+              >
+                <div className="flex items-center gap-2">
+                  {a.triggered
+                    ? <BellRing className="w-3 h-3 text-warning shrink-0" />
+                    : <Bell     className="w-3 h-3 text-slate-500 shrink-0" />}
+                  <span className="text-[11px] font-mono text-white">{a.symbol}</span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {a.direction} {(a.threshold * 100).toFixed(3)}%/h
+                  </span>
+                  {a.triggered && (
+                    <span className="text-[9px] font-mono text-warning">FIRED</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => removeAlert(a.id)}
+                  className="text-slate-600 hover:text-danger transition-colors ml-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Funding Rate Ticker ──────────────────────────────────────────────────────
+
+function FundingTicker({ markets }: { markets: Market[] }) {
+  const top = markets
+    .filter((m) => m.volume24h > 0)
+    .sort((a, b) => b.volume24h - a.volume24h)
+    .slice(0, 10);
+
+  if (top.length === 0) return null;
+
+  // Double the list so the CSS ticker loop is seamless
+  const items = [...top, ...top];
+
+  return (
+    <div
+      className="overflow-hidden"
+      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: "rgba(0,0,0,0.25)" }}
+    >
+      <div className="flex animate-ticker whitespace-nowrap py-1" style={{ width: "max-content" }}>
+        {items.map((m, i) => {
+          const sym = m.symbol.replace("-PERP", "");
+          const fundingPct = (m.fundingRate * 100).toFixed(4);
+          const fundingPos = m.fundingRate >= 0;
+          const changePos = m.priceChange24h >= 0;
+          return (
+            <span
+              key={`${m.symbol}-${i}`}
+              className="flex items-center gap-2 shrink-0 px-5 text-[10px] font-mono"
+              style={{ borderRight: "1px solid rgba(255,255,255,0.05)" }}
+            >
+              <span className="text-slate-400 font-semibold">{sym}</span>
+              <span className={changePos ? "text-neon-green" : "text-danger"}>
+                {changePos ? "+" : ""}{m.priceChange24h.toFixed(2)}%
+              </span>
+              <span className="text-slate-600">·</span>
+              <span className="text-slate-500">F</span>
+              <span className={fundingPos ? "text-electric-300" : "text-warning"}>
+                {fundingPos ? "+" : ""}{fundingPct}%
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SessionBar() {
@@ -174,6 +364,7 @@ export default function SessionBar() {
     hasAgent,
     keyStored,
     accountHealth,
+    markets,
     importKey,
     clearAgent,
     agentKeyRegistered,
@@ -186,9 +377,17 @@ export default function SessionBar() {
     isApprovingBuilderCode,
   } = usePacifica();
 
-  const [showModal, setShowModal] = useState(false);
+  const { alerts } = useFundingAlertStore();
+  const firedAlerts = useFundingAlerts(markets);
+
+  const [showModal,  setShowModal]  = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
 
   const handleImport = useCallback((key: string) => { importKey(key); }, [importKey]);
+
+  const activeAlertCount  = alerts.length;
+  const firedCount        = alerts.filter((a) => a.triggered).length;
+  const hasNewFired       = firedAlerts.length > 0;
 
   return (
     <>
@@ -223,8 +422,45 @@ export default function SessionBar() {
           </div>
         )}
 
-        {/* Right: wallet + agent key */}
-        <div className="flex items-center gap-2">
+        {/* Right: alerts + wallet + agent key */}
+        <div className="flex items-center gap-2 relative">
+          {/* Funding alerts bell */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAlerts((v) => !v)}
+              className={cn(
+                "relative p-1.5 rounded-md transition-colors",
+                hasNewFired
+                  ? "text-warning hover:bg-warning/10"
+                  : activeAlertCount > 0
+                    ? "text-electric-300 hover:bg-electric/10"
+                    : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+              )}
+              title="Funding Rate Alerts"
+            >
+              {hasNewFired || firedCount > 0
+                ? <BellRing className="w-3.5 h-3.5" />
+                : <Bell     className="w-3.5 h-3.5" />}
+              {activeAlertCount > 0 && (
+                <span
+                  className={cn(
+                    "absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full text-[8px] font-bold flex items-center justify-center",
+                    firedCount > 0 ? "bg-warning text-black" : "bg-electric text-white"
+                  )}
+                >
+                  {activeAlertCount}
+                </span>
+              )}
+            </button>
+
+            {showAlerts && (
+              <FundingAlertsPanel
+                markets={markets}
+                onClose={() => setShowAlerts(false)}
+              />
+            )}
+          </div>
+
           {connected && wallet ? (
             <>
               <span className="hidden sm:inline text-[10px] font-mono text-slate-400 px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
@@ -302,6 +538,9 @@ export default function SessionBar() {
           </button>
         </div>
       )}
+
+      {/* Funding Rate Ticker */}
+      <FundingTicker markets={markets} />
 
       {showModal && (
         <AgentKeyModal
