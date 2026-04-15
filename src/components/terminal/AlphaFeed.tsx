@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   TrendingUp, TrendingDown, Minus, Zap, RefreshCw, AlertCircle,
   MessageSquare, Wifi, WifiOff, CheckCircle2, BarChart2,
@@ -27,6 +27,29 @@ function formatNotional(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}k`;
   return `$${n.toFixed(0)}`;
+}
+
+// ─── Sentiment Sparkline ──────────────────────────────────────────────────────
+
+function SentimentSparkline({ data }: { data: number[] }) {
+  if (data.length < 2) return null;
+  const W = 60; const H = 14;
+  const min = Math.min(...data); const max = Math.max(...data);
+  const range = max - min || 1;
+  const pts = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * W;
+      const y = H - ((v - min) / range) * (H - 2) - 1;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const last = data[data.length - 1];
+  const color = last >= 0 ? "#00ff87" : "#ff3b5c";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: 60, height: 14, display: "block" }} preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
+    </svg>
+  );
 }
 
 // ─── Score bar ────────────────────────────────────────────────────────────────
@@ -192,10 +215,12 @@ function SocialCard({
   signal,
   onTrade,
   isTrading,
+  sparklineData,
 }: {
   signal: AlphaSocialSignal;
   onTrade: (signal: AlphaSocialSignal, side: "LONG" | "SHORT") => void;
   isTrading: boolean;
+  sparklineData?: number[];
 }) {
   const isUp = signal.changePercent >= 0;
 
@@ -219,7 +244,12 @@ function SocialCard({
             </div>
           </div>
         </div>
-        <SentimentBadge sentiment={signal.sentiment} />
+        <div className="flex items-center gap-2 shrink-0">
+          {sparklineData && sparklineData.length >= 2 && (
+            <SentimentSparkline data={sparklineData} />
+          )}
+          <SentimentBadge sentiment={signal.sentiment} />
+        </div>
       </div>
 
       {/* Change bar */}
@@ -366,6 +396,18 @@ export default function AlphaFeed() {
   const [tradingId, setTradingId] = useState<string | null>(null);
   const [toastMsg,  setToastMsg]  = useState<string | null>(null);
   const [pending,   setPending]   = useState<Pending | null>(null);
+
+  // Sentiment history: symbol → last 20 changePercent samples for sparklines
+  const sentimentHistory = useRef<Map<string, number[]>>(new Map());
+  useEffect(() => {
+    socialSignals.forEach((sig) => {
+      const prev = sentimentHistory.current.get(sig.symbol) ?? [];
+      const last = prev[prev.length - 1];
+      if (last !== sig.changePercent) {
+        sentimentHistory.current.set(sig.symbol, [...prev, sig.changePercent].slice(-20));
+      }
+    });
+  }, [socialSignals]);
 
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -525,6 +567,7 @@ export default function AlphaFeed() {
                 signal={signal}
                 onTrade={handleSocialTrade}
                 isTrading={tradingId === signal.symbol}
+                sparklineData={sentimentHistory.current.get(signal.symbol)}
               />
             ))}
           </div>

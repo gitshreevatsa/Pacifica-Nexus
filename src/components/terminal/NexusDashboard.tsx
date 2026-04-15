@@ -45,7 +45,7 @@ function CenterTabBar({
   onChange: (t: CenterTab) => void;
 }) {
   const tabs: { id: CenterTab; label: string }[] = [
-    { id: "arb",     label: "Arb Scanner"     },
+    { id: "arb",     label: "Arbitrage Scanner" },
     { id: "markets", label: "Market Scanner"  },
     { id: "trades",  label: "Trade Log"       },
   ];

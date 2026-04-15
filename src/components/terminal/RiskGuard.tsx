@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Shield, AlertTriangle, TrendingDown, Activity, Layers } from "lucide-react";
+import { Shield, AlertTriangle, TrendingDown, Activity, Layers, Zap, Settings2 } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
 import type { Position, AccountHealth } from "@/types";
 import { cn, formatUSD } from "@/lib/utils";
@@ -377,6 +377,29 @@ export default function RiskGuard() {
   const [deRiskingId, setDeRiskingId] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
+  // Auto de-risk rule state — persisted in localStorage
+  const [autoDeRisk, setAutoDeRisk] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("nexus_auto_derisk") === "true";
+  });
+  const [autoThreshold, setAutoThreshold] = useState<number>(() => {
+    if (typeof window === "undefined") return 10;
+    return Number(localStorage.getItem("nexus_auto_derisk_threshold") ?? 10);
+  });
+  const [showAutoConfig, setShowAutoConfig] = useState(false);
+  // Per-position cooldown: maps position.id → last auto-fire timestamp
+  const autoFiredAt = useRef<Map<string, number>>(new Map());
+
+  const toggleAutoDeRisk = useCallback((val: boolean) => {
+    setAutoDeRisk(val);
+    localStorage.setItem("nexus_auto_derisk", String(val));
+  }, []);
+
+  const updateThreshold = useCallback((val: number) => {
+    setAutoThreshold(val);
+    localStorage.setItem("nexus_auto_derisk_threshold", String(val));
+  }, []);
+
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3_000);
@@ -403,6 +426,26 @@ export default function RiskGuard() {
     return dist < 10;
   }).length;
 
+  // Auto de-risk: watch positions, fire when dist-to-liq < threshold (60s cooldown per position)
+  useEffect(() => {
+    if (!autoDeRisk || !keyStored || !walletAddress) return;
+    const COOLDOWN_MS = 60_000;
+    openPositions.forEach((position) => {
+      if (deRiskingId === position.id) return;
+      const lastFired = autoFiredAt.current.get(position.id) ?? 0;
+      if (Date.now() - lastFired < COOLDOWN_MS) return;
+      const dist = position.markPrice > 0
+        ? Math.abs(((position.liquidationPrice - position.markPrice) / position.markPrice) * 100)
+        : 100;
+      if (dist < autoThreshold) {
+        autoFiredAt.current.set(position.id, Date.now());
+        deRisk25Pct(position)
+          .then(() => showToast(`Auto de-risked ${position.symbol} (${dist.toFixed(1)}% to liq) ✓`))
+          .catch(() => autoFiredAt.current.delete(position.id));
+      }
+    });
+  }, [autoDeRisk, autoThreshold, openPositions, keyStored, walletAddress, deRisk25Pct, deRiskingId, showToast]);
+
   return (
     <div className="flex flex-col h-full relative">
       {/* Header */}
@@ -416,12 +459,71 @@ export default function RiskGuard() {
                 {atRiskCount} at risk
               </span>
             )}
+            {autoDeRisk && (
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full animate-pulse"
+                style={{ background: "rgba(0,255,135,0.12)", color: "#00ff87" }}>
+                AUTO
+              </span>
+            )}
           </div>
-          <Activity className="w-3.5 h-3.5 text-slate-500" />
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowAutoConfig((v) => !v)}
+              className={cn(
+                "p-1 rounded transition-colors",
+                showAutoConfig ? "bg-warning/10 text-warning" : "text-slate-500 hover:text-slate-300"
+              )}
+              title="Auto De-Risk settings"
+            >
+              <Settings2 className="w-3 h-3" />
+            </button>
+            <Activity className="w-3.5 h-3.5 text-slate-500" />
+          </div>
         </div>
         <p className="text-[10px] text-slate-500 mt-1">
           Your account health &amp; open positions. <span className="text-warning">De-Risk 25%</span> closes a quarter of a position to reduce liquidation risk.
         </p>
+
+        {/* Auto de-risk config panel */}
+        {showAutoConfig && (
+          <div className="mt-2 rounded-xl p-3 space-y-2" style={{ background: "rgba(255,184,0,0.05)", border: "1px solid rgba(255,184,0,0.12)" }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3 h-3 text-warning" />
+                <span className="text-[11px] font-semibold text-white">Auto De-Risk</span>
+              </div>
+              {/* Toggle */}
+              <button
+                onClick={() => toggleAutoDeRisk(!autoDeRisk)}
+                className={cn(
+                  "w-8 h-4 rounded-full transition-all duration-150 relative shrink-0",
+                  autoDeRisk ? "bg-neon-green/60" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 w-3 h-3 rounded-full transition-all duration-150",
+                  autoDeRisk ? "left-4 bg-neon-green" : "left-0.5 bg-slate-500"
+                )} />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500">
+              Trigger when dist-to-liq &lt; threshold. 60s cooldown per position.
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-400 shrink-0">Trigger at</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={autoThreshold}
+                onChange={(e) => updateThreshold(Number(e.target.value))}
+                className="w-14 text-[11px] font-mono text-white rounded-lg px-2 py-1 text-center focus:outline-none"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+              />
+              <span className="text-[10px] text-slate-400">% dist. to liq.</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">

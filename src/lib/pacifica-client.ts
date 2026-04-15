@@ -51,9 +51,15 @@ async function apiFetch<T>(
   const json = await res.json().catch(() => ({ error: res.statusText }));
   if (!res.ok) {
     // Pacifica uses several error field names depending on the endpoint
-    const msg =
-      json?.error ?? json?.message ?? json?.detail ?? json?.msg ??
-      (typeof json === "string" ? json : JSON.stringify(json));
+    const rawMsg: unknown =
+      json?.error ?? json?.message ?? json?.detail ?? json?.msg;
+    const msg = rawMsg
+      ? String(rawMsg)
+      : res.status === 400
+      ? "Bad request — check signature, builder code approval, and order size."
+      : res.status === 401 || res.status === 403
+      ? "Unauthorized — agent key may be unregistered or expired."
+      : JSON.stringify(json);
     console.error(`[Pacifica ${res.status}] ${path}`, json);
     throw new Error(`[${res.status}] ${msg}`);
   }
@@ -399,21 +405,22 @@ export class PacificaClient {
   /** Market order — POST /orders/create_market */
   async createMarketOrder(params: OrderParams): Promise<{ order_id: number }> {
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
-    const body = this.signed("create_market_order", {
+    const amount = String(parseFloat(params.size.toFixed(2)));
+
+    // Only include reduce_only when it is explicitly true.
+    // Including reduce_only:false in the signed payload causes a signature
+    // mismatch if the Pacifica server omits the field when verifying normal orders.
+    const operationData: Record<string, unknown> = {
       symbol:           params.symbol,
-      amount:           String(parseFloat(params.size.toFixed(2))),
+      amount,
       side,
       slippage_percent: params.slippage ?? DEFAULT_SLIPPAGE,
-      reduce_only:      params.reduceOnly ?? false,
-      builder_code:     BUILDER_CODE,        // ← POINTPULSE always
-    });
-    console.debug("[Pacifica] createMarketOrder →", {
-      symbol: params.symbol,
-      side,
-      amount: body.amount,
-      slippage_percent: body.slippage_percent,
-      reduce_only: body.reduce_only,
-    });
+      builder_code:     BUILDER_CODE,
+    };
+    if (params.reduceOnly) operationData.reduce_only = true;
+
+    const body = this.signed("create_market_order", operationData);
+    console.debug("[Pacifica] createMarketOrder →", { symbol: params.symbol, side, amount, reduce_only: params.reduceOnly ?? false });
     return post<{ order_id: number }>("/orders/create_market", body);
   }
 
@@ -421,15 +428,20 @@ export class PacificaClient {
   async createLimitOrder(params: OrderParams): Promise<{ order_id: number }> {
     if (!params.price) throw new Error("Price required for limit orders");
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
-    const body = this.signed("create_order", {
+    const amount = String(parseFloat(params.size.toFixed(2)));
+
+    const operationData: Record<string, unknown> = {
       symbol:       params.symbol,
-      price:        String(params.price),
-      amount:       String(params.size),
+      price:        String(parseFloat(params.price.toFixed(2))),
+      amount,
       side,
       tif:          params.tif ?? "GTC",
-      reduce_only:  params.reduceOnly ?? false,
-      builder_code: BUILDER_CODE,            // ← POINTPULSE always
-    });
+      builder_code: BUILDER_CODE,
+    };
+    if (params.reduceOnly) operationData.reduce_only = true;
+
+    const body = this.signed("create_order", operationData);
+    console.debug("[Pacifica] createLimitOrder →", { symbol: params.symbol, side, amount, price: params.price, reduce_only: params.reduceOnly ?? false });
     return post<{ order_id: number }>("/orders/create", body);
   }
 

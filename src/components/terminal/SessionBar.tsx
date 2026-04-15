@@ -472,6 +472,7 @@ export default function SessionBar() {
                 <AgentBadge publicKey={agentPublicKey} onClear={clearAgent} />
               ) : (
                 <button onClick={() => setShowModal(true)}
+                  title="A session-scoped signing key that lets this terminal place orders without wallet popups. Stored only in sessionStorage — never transmitted."
                   className="flex items-center gap-1.5 bg-electric hover:bg-electric-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors shadow-electric animate-pulse">
                   <Key className="w-3 h-3" />
                   Authorize Agent Key
@@ -498,7 +499,14 @@ export default function SessionBar() {
       {connected && !keyStored && (
         <div className="flex items-center gap-2 px-5 py-1.5 text-[10px] font-mono text-slate-400" style={{ background: "rgba(77,143,255,0.06)", borderBottom: "1px solid rgba(77,143,255,0.12)" }}>
           <Key className="w-3 h-3 text-electric-300 shrink-0" />
-          <span>Wallet connected — next, click <span className="text-electric-300 font-semibold">Authorize Agent Key</span> to enable trading.</span>
+          <span>
+            Wallet connected — click{" "}
+            <span className="text-electric-300 font-semibold">Authorize Agent Key</span>{" "}
+            to enable one-click trading.{" "}
+            <span className="text-slate-500">
+              An Agent Key is a session-scoped signing key that lets the terminal submit orders without wallet popups — it never leaves your browser.
+            </span>
+          </span>
         </div>
       )}
 

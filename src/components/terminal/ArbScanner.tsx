@@ -208,7 +208,7 @@ export default function ArbScanner() {
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-electric animate-pulse" />
-          <h2 className="text-sm font-semibold text-white">Arb Scanner</h2>
+          <h2 className="text-sm font-semibold text-white">Arbitrage Scanner</h2>
           <span
             className="text-[10px] font-mono text-slate-500 px-1.5 py-0.5 rounded"
             style={{ background: "rgba(255,255,255,0.04)" }}

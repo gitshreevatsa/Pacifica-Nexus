@@ -83,11 +83,14 @@ export interface UsePacificaReturn {
 }
 
 export interface OpenPositionParams {
-  symbol:    string;
-  side:      "LONG" | "SHORT";
-  size:      number;
-  price?:    number;
-  slippage?: string;
+  symbol:     string;
+  side:       "LONG" | "SHORT";
+  size:       number;
+  price?:     number;
+  orderType?: "market" | "limit";
+  slippage?:  string;
+  tpPrice?:   number;
+  slPrice?:   number;
 }
 
 export interface ClosePositionParams {
@@ -235,8 +238,26 @@ export function usePacifica(): UsePacificaReturn {
 
   // ── Trade mutations ────────────────────────────────────────────────────────
   const openMutation = useMutation({
-    mutationFn: (p: OpenPositionParams) =>
-      client.createMarketOrder({ symbol: p.symbol, side: p.side, size: p.size, slippage: p.slippage }),
+    mutationFn: async (p: OpenPositionParams) => {
+      // Main order — market or limit
+      const result = p.orderType === "limit"
+        ? await client.createLimitOrder({ symbol: p.symbol, side: p.side, size: p.size, price: p.price })
+        : await client.createMarketOrder({ symbol: p.symbol, side: p.side, size: p.size, slippage: p.slippage });
+
+      // Bracket orders: TP and SL as reduce-only limit orders on the opposite side
+      const oppSide = p.side === "LONG" ? "SHORT" : "LONG";
+      if (p.tpPrice && p.tpPrice > 0) {
+        try {
+          await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.tpPrice, reduceOnly: true });
+        } catch (e) { console.warn("[Nexus] TP order failed:", e); }
+      }
+      if (p.slPrice && p.slPrice > 0) {
+        try {
+          await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.slPrice, reduceOnly: true });
+        } catch (e) { console.warn("[Nexus] SL order failed:", e); }
+      }
+      return result;
+    },
     onSuccess: (result, p) => {
       invalidateTrades();
       const price = markPrices[p.symbol] ?? 0;
