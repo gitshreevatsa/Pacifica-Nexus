@@ -151,7 +151,7 @@ export default function QuickOrderBar() {
           markPrice={markPrice}
           description={`Manual ${side.toLowerCase()} order on ${activeSymbol.replace("-PERP", "")} via Quick Order bar.`}
           onConfirm={handleConfirm}
-          onClose={() => setShowConfirm(false)}
+          onCancel={() => setShowConfirm(false)}
         />
       )}
     </>
