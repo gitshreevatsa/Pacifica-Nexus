@@ -4,9 +4,7 @@
 
 ## What Is This?
 
-Pacifica Nexus is a **professional trading terminal** built on top of the Pacifica Perpetual DEX on Solana. It is designed for traders who want more signal and less noise — combining real-time perpetual market data, large-trade whale detection, social trend analysis, and automated funding-rate arbitrage discovery into a single glassmorphic interface.
-
-Built for the **Pacifica Hackathon** under builder code **POINTPULSE**.
+Pacifica Nexus is a **professional trading terminal** built on top of the Pacifica Perpetual DEX on Solana. It is designed for traders who want more signal and less noise — combining real-time perpetual market data, large-trade whale detection, social trend analysis, automated funding-rate arbitrage discovery, and intelligent risk management into a single glassmorphic interface.
 
 ---
 
@@ -27,8 +25,9 @@ Built for the **Pacifica Hackathon** under builder code **POINTPULSE**.
 - Searchable market tabs — all Pacifica perp markets, scrollable with live mark price and 24h change.
 - Stats row: mark price, oracle price, funding rate, open interest, 24h volume.
 - Mouse drag to pan, scroll to zoom, touch pinch supported.
+- **Orderbook Imbalance Bar**: Live bid/ask pressure overlay at the bottom of the chart. Powered by the Pacifica WebSocket orderbook channel (top-20 levels, updates every ~250 ms). The red segment = ask volume share; green segment = bid volume share. A wide red bar means more sell-side liquidity; a wide green bar means more buy-side pressure.
 
-### Arb Scanner (Center — Bottom)
+### Arbitrage Scanner (Center — Bottom, "Arbitrage Scanner" Tab)
 
 - **Cash & Carry Strategy**: Identifies funding rate arbitrage opportunities across all Pacifica markets.
 - Compares Pacifica perpetual funding rates against Jupiter spot prices.
@@ -37,13 +36,37 @@ Built for the **Pacifica Hackathon** under builder code **POINTPULSE**.
 - APY > 15% shown with neon green glow for instant visibility.
 - One-click hedge: shorts the perp on Pacifica + opens Jupiter in a new tab for the spot leg.
 
+### Market Scanner (Center — Bottom, "Market Scanner" Tab)
+
+- Sortable table of all Pacifica markets with mark price, 24h change, funding rate, open interest, volume.
+- Color-coded funding: green = positive (longs pay), red = negative (shorts pay).
+
+### Trade Log (Center — Bottom, "Trade Log" Tab)
+
+- Real-time feed of your filled orders and position changes.
+- Timestamp, symbol, direction, size, and fill price for each event.
+
+### Smart TP/SL Manager (Center — Bottom, "TP / SL" Tab)
+
+- Per-position bracket order management: view and manage take-profit and stop-loss orders.
+- **Trailing Stop**: Set a trail percentage — the SL automatically ratchets up (for longs) or down (for shorts) as the market moves in your favour. The trail fires a cancel + replace reduce-only limit order when the price moves beyond the watermark.
+- **Breakeven Button**: Instantly moves your SL to your entry price, locking in a scratch trade.
+
 ### Risk Guard (Right Panel)
 
 - Real-time account health with a 10-segment color-coded margin bar (green → amber → red).
 - Per-position breakdown: entry price, mark price, liquidation price, unrealized P&L.
 - Distance-to-liquidation progress bar with red glow when < 10% away.
-- **De-Risk 25%**: One-click reduce-only order that trims 25% of any endangered position.
-- Positions at risk pulse with a danger-colored card background.
+- **Auto De-Risk**: Set a liquidation-distance threshold (e.g., 15%). When any position's distance to liq drops below it, a 25% reduce-only market order fires automatically. A "Set" button prevents accidental threshold changes — the rule only activates when you click Set or press Enter. Cooldown: 10 s per position to prevent runaway orders. Lot-size-aware: only fires if the calculated trim is ≥ 1 lot.
+- **Margin Efficiency tab**: Per-position margin share bar (green < 40%, amber 40–60%, red > 60%), efficiency score (`|PnL| / margin × 100`), and plain-English recommendations for overconcentration.
+
+### Quick Order Bar (Bottom)
+
+- Always-visible fast-entry bar for any market.
+- **Market / Limit toggle**: Switch between market orders and limit orders with a price input.
+- **Size mode**: Enter size in units (e.g., 0.5 SOL) or as a percentage of your available equity.
+- **TP / SL inputs**: Collapsible row to attach take-profit and stop-loss to the order at creation time (bracket orders placed as reduce-only limits).
+- **Keyboard shortcuts**: Press `B` to pre-fill Long, `S` to pre-fill Short, `Esc` to dismiss the confirmation modal.
 
 ---
 
@@ -60,20 +83,29 @@ Built for the **Pacifica Hackathon** under builder code **POINTPULSE**.
            │
            ├── AlphaFeed ← useWhaleStream
            │                  ├── Elfa AI REST (60s poll, 10min TTL)
-           │                  └── Pacifica WebSocket (live, $10k+ filter)
+           │                  └── Pacifica WS singleton (live, $10k+ filter)
            │
            ├── PriceChart ← usePacifica (markets)
+           │              ← useOrderbookStream (WS singleton, 250ms)
            │                  └── Pacifica REST /kline (10–30s poll)
            │
            ├── ArbScanner ← useArbScanner
            │                  ├── Pacifica REST /info/prices (3s poll)
            │                  └── Jupiter Price API (3s poll)
            │
+           ├── TpSlManager ← usePacifica + useTrailingStopStore
+           │                  └── Trailing stop: cancel+replace SL on watermark
+           │
            └── RiskGuard ← usePacifica
                               ├── /positions (3s poll)
                               ├── /account (5s poll)
-                              └── POST /orders/create_market (De-Risk)
+                              ├── POST /orders/create_market (Auto De-Risk)
+                              └── MarginEfficiency (per-pos margin share)
 ```
+
+### Shared WebSocket Singleton
+
+All real-time hooks (`useWhaleStream`, `useOrderbookStream`) share **one** WebSocket connection to `wss://ws.pacifica.fi/ws` via `src/lib/pacifica-ws.ts`. This prevents duplicate connections and handles reconnect with exponential backoff (2 s → 30 s max) and a 30 s ping heartbeat.
 
 ### Data Flow
 
@@ -90,10 +122,18 @@ User connects wallet → imports agent key (base58) from app.pacifica.fi/apikey
 
 ```
 User clicks Confirm
-  → buildSignedBody("create_market_order", payload, agentKeypair)
-  → POST /orders/create_market { symbol, side, amount, slippage, builder_code: "Pacifica-Nexus" }
+  → buildSignedBody("create_market_order" | "create_order", payload, agentKeypair)
+  → POST /orders/create_market or /orders/create
   → Response: { order_id }
   → React Query invalidates positions + orders + health → UI updates
+```
+
+**Bracket Orders (TP/SL):**
+
+```
+Main order confirmed → order_id returned
+  → place TP: reduce-only limit at tpPrice (opposite side)
+  → place SL: reduce-only limit at slPrice (opposite side)
 ```
 
 **Whale Matching:**
@@ -102,6 +142,17 @@ User clicks Confirm
 Elfa API trending token → AlphaSocialSignal (sentimentScore, volumeScore)
 Pacifica WS trade event → WhaleEvent if notional ≥ $10,000
 tryMatch(): signal.direction === whale.side? → VerifiedAlpha (confidence score)
+```
+
+**Orderbook Imbalance:**
+
+```
+WS subscribe { source: "book", symbol, agg_level: 100 }
+  → data.l = [[bids], [asks]] each level { a: amount, p: price, n: count }
+  → bidVolume = sum top-20 bid amounts
+  → askVolume = sum top-20 ask amounts
+  → imbalance = (bidVolume - askVolume) / (bidVolume + askVolume)   [-1, +1]
+  → bar width: ask = (1 - imbalance)/2 × 100%, bid = (1 + imbalance)/2 × 100%
 ```
 
 ---
@@ -113,7 +164,7 @@ tryMatch(): signal.direction === whale.side? → VerifiedAlpha (confidence score
 | Framework        | Next.js 14 (App Router, `force-dynamic`)            |
 | UI               | React 18, Tailwind CSS 3, Lucide Icons              |
 | Charts           | Lightweight Charts 4 (TradingView)                  |
-| State / Fetching | TanStack React Query 5                              |
+| State / Fetching | TanStack React Query 5, Zustand                     |
 | Wallet           | Solana Wallet Adapter (Phantom, MetaMask, Solflare) |
 | Signing          | TweetNaCl + bs58 (agent keypair signing)            |
 | Social Data      | Elfa AI v2 API                                      |
@@ -137,28 +188,39 @@ tryMatch(): signal.direction === whale.side? → VerifiedAlpha (confidence score
 │   │   │   ├── QueryProvider.tsx
 │   │   │   └── SolanaWalletProvider.tsx
 │   │   └── terminal/
-│   │       ├── NexusDashboard.tsx    # Three-column grid layout
+│   │       ├── NexusDashboard.tsx    # Three-column grid layout, resizable divider
 │   │       ├── SessionBar.tsx        # Header: wallet + agent key
 │   │       ├── AlphaFeed.tsx         # Left: dual-signal alpha cards
-│   │       ├── PriceChart.tsx        # Center top: candlestick chart
-│   │       ├── ArbScanner.tsx        # Center bottom: funding arb
-│   │       ├── RiskGuard.tsx         # Right: positions + health
-│   │       └── TradeConfirmModal.tsx # Trade confirmation dialog
+│   │       ├── PriceChart.tsx        # Center top: candlestick + OB imbalance bar
+│   │       ├── ArbScanner.tsx        # Center bottom tab: funding arb scanner
+│   │       ├── MarketScanner.tsx     # Center bottom tab: market overview table
+│   │       ├── TradeLog.tsx          # Center bottom tab: filled orders feed
+│   │       ├── TpSlManager.tsx       # Center bottom tab: bracket + trailing stops
+│   │       ├── RiskGuard.tsx         # Right: positions, auto de-risk, margin tab
+│   │       ├── MarginEfficiency.tsx  # Per-position margin share + efficiency score
+│   │       ├── QuickOrderBar.tsx     # Bottom: fast order entry with TP/SL + hotkeys
+│   │       ├── TradeConfirmModal.tsx # Trade confirmation dialog (lot-size presets)
+│   │       └── PortfolioSummaryBar.tsx
 │   │
 │   ├── hooks/
-│   │   ├── usePacifica.ts      # Core: markets, positions, trading
-│   │   ├── useArbScanner.ts    # Funding rate vs spot arb engine
-│   │   └── useWhaleStream.ts   # Dual-signal: Elfa + WS whales
+│   │   ├── usePacifica.ts        # Core: markets, positions, trading, auto de-risk
+│   │   ├── useArbScanner.ts      # Funding rate vs spot arb engine
+│   │   ├── useWhaleStream.ts     # Dual-signal: Elfa + WS whales (shared WS)
+│   │   └── useOrderbookStream.ts # Live OB imbalance via shared WS singleton
 │   │
 │   ├── lib/
-│   │   ├── pacifica-client.ts  # Pacifica REST API client (singleton)
+│   │   ├── pacifica-client.ts  # Pacifica REST API client (lot-size snapping, retry)
+│   │   ├── pacifica-ws.ts      # Shared singleton WebSocket (reconnect + ping)
 │   │   ├── elfa-client.ts      # Elfa AI API client
 │   │   ├── signing.ts          # Agent key import, keypair signing
 │   │   ├── privy.ts            # Privy config
 │   │   └── utils.ts            # formatUSD, formatPct, cn, truncateAddress
 │   │
+│   ├── stores/
+│   │   └── trailingStopStore.ts  # Zustand: per-position trailing stop state
+│   │
 │   └── types/
-│       └── index.ts            # All TypeScript types
+│       └── index.ts            # All TypeScript types (Market includes lotSize)
 │
 ├── public/
 │   └── image.png              # Terminal screenshot
@@ -183,7 +245,7 @@ tryMatch(): signal.direction === whale.side? → VerifiedAlpha (confidence score
 
 ```bash
 git clone https://github.com/gitshreevatsa/Pacifica-Nexus.git
-cd Pacifica-Hackathon
+cd Pacifica-Nexus
 npm install
 ```
 
@@ -208,7 +270,7 @@ NEXT_PUBLIC_PACIFICA_API_URL=https://api.pacifica.fi/api/v1
 NEXT_PUBLIC_JUPITER_PRICE_API=https://price.jup.ag/v6/price
 
 # ─── Builder Code (do not change) ────────────────────────────────────────────
-NEXT_PUBLIC_BUILDER_CODE=Pacifica-Nexus
+NEXT_PUBLIC_BUILDER_CODE=POINTPULSE
 ```
 
 | Variable                   | Where to get it                                           |
@@ -272,8 +334,9 @@ When you first load the terminal:
 - Click any **token tab** to switch markets.
 - Use **interval buttons** (1m, 5m, 15m, 1h, 4h, 1d) on the right.
 - **Drag** the chart to pan history. **Scroll** to zoom in/out.
+- **Orderbook Imbalance Bar** at the bottom: red = ask pressure, green = bid pressure. Percentages show each side's share of the top-20 level volume. A 70% green / 30% red bar means bids are dominating — potential upward pressure.
 
-### Arb Scanner (Center Bottom)
+### Arbitrage Scanner (Center Bottom — Arb tab)
 
 - Markets are sorted by annualized yield.
 - **APY > 15%** glows neon green — these are the best cash-and-carry opportunities.
@@ -282,12 +345,28 @@ When you first load the terminal:
   - The short perp order is placed on Pacifica automatically.
   - Jupiter opens in a new tab so you can buy the spot leg manually.
 
+### Smart TP/SL Manager (Center Bottom — TP / SL tab)
+
+- Lists all open positions with their current bracket orders.
+- **Trailing Stop**: Enable the toggle, enter a trail % (e.g., 2%), click Set. The system tracks the price watermark and automatically re-places the SL as the market moves in your favour.
+- **Breakeven**: Moves the SL to your entry price with one click — zero risk from that point.
+
 ### Risk Guard (Right)
 
 - The **margin bar** at the top shows your overall account health (green = safe, red = critical).
 - Each open position shows entry, mark, and liquidation prices.
 - The **Dist. to Liq.** bar shows how close you are to liquidation.
 - Click **De-Risk 25%** on any position to automatically reduce it by 25% (reduce-only market order).
+- **Auto De-Risk**: Enter a threshold distance (e.g., 15%), click **Set**. When any position's liq distance drops below the threshold, the terminal automatically trims 25% of that position. 10 s cooldown per position prevents repeated triggers.
+- Switch to the **Margin** tab to see per-position margin share and efficiency scores.
+
+### Quick Order Bar (Bottom)
+
+- Select a symbol, choose Long or Short, set size, click Submit.
+- **Market / Limit**: Toggle to limit mode and enter your target price.
+- **% of Equity**: Toggle size mode to enter size as a percentage of your available equity.
+- **TP / SL**: Expand the bracket row to attach take-profit and stop-loss prices.
+- **Keyboard Shortcuts**: Press `B` anywhere to jump to Long, `S` to jump to Short, `Esc` to close the confirmation modal.
 
 ---
 
@@ -299,7 +378,7 @@ All Pacifica API calls go through `src/lib/pacifica-client.ts`.
 
 | Endpoint                  | Purpose                                               |
 | ------------------------- | ----------------------------------------------------- |
-| `GET /info`               | Market metadata (tick size, leverage, min order size) |
+| `GET /info`               | Market metadata (tick size, leverage, lot size)       |
 | `GET /info/prices`        | Live mark prices, funding rates, open interest        |
 | `GET /kline`              | Historical candle data                                |
 | `GET /account?account=`   | Account equity and margin                             |
@@ -313,10 +392,17 @@ All Pacifica API calls go through `src/lib/pacifica-client.ts`.
 | `POST /agent/bind`                    | Main wallet | Register agent key (once)   |
 | `POST /account/builder_codes/approve` | Main wallet | Approve builder code (once) |
 | `POST /orders/create_market`          | Agent key   | Place market order          |
-| `POST /orders/create`                 | Agent key   | Place limit order           |
+| `POST /orders/create`                 | Agent key   | Place limit or bracket order|
 | `POST /orders/cancel`                 | Agent key   | Cancel order                |
 
-Signed requests include: `type`, `main_wallet`, `agent_wallet`, `timestamp`, `expiry`, `signature` (Ed25519 over sorted JSON).
+Signed requests include: `type`, `main_wallet`, `agent_wallet`, `timestamp`, `expiry`, `signature` (Ed25519 over sorted JSON). The `reduce_only` field is only included in the signed body when `true` — omitting it when false prevents signature mismatches.
+
+### WebSocket (Shared Singleton — `pacifica-ws.ts`)
+
+| Channel          | Subscribe payload                                                  | Purpose                         |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------- |
+| `book`           | `{ method: "subscribe", source: "book", symbol, agg_level: 100 }` | Top-of-book levels every ~250ms |
+| `trades`/`fills` | `{ method: "subscribe", params: { channel: "trades" } }`          | Public trade feed for whale detection |
 
 ---
 
@@ -325,14 +411,20 @@ Signed requests include: `type`, `main_wallet`, `agent_wallet`, `timestamp`, `ex
 **Agent Keys over Wallet Popups**
 Every order goes through the agent keypair stored in `sessionStorage`. Users sign once to authorize the agent key, then trade without any wallet popups. The agent key can only trade — it cannot withdraw funds.
 
-**Builder Code (Pacifica-Nexus)**
-Every market order includes `builder_code: "Pacifica-Nexus"`. This enrolls users in Pacifica's builder rewards program. Approval is a one-time wallet signature.
+**Builder Code (POINTPULSE)**
+Every market order includes `builder_code: "POINTPULSE"`. This enrolls users in Pacifica's builder rewards program. Approval is a one-time wallet signature.
 
 **Dual-Signal Filter**
 Social signals without whale confirmation are displayed but clearly marked as unverified. This prevents acting on pure social noise. A trade is only surfaced as "Verified Alpha" when at least one $10k+ on-chain trade confirms the social direction.
 
 **Cash & Carry Neutrality**
 The arb scanner only suggests market-neutral positions — short the perp (collect funding), long the spot (delta hedge). There is no directional exposure. Risk scores account for basis spread volatility.
+
+**Shared WebSocket**
+A single WS connection is created at module load and shared by all hooks. This ensures the orderbook subscription and the whale feed use the same socket, preventing browser connection limits from being hit and making reconnect logic centralized.
+
+**Lot-Size Safety**
+All order amounts are snapped to the market's `lot_size` before signing. If the API rejects an order with a lot-size error, the client parses the correct lot size from the error message and retries once automatically.
 
 ---
 
@@ -352,8 +444,9 @@ npm run type-check   # TypeScript check (no emit)
 
 - The app uses `export const dynamic = "force-dynamic"` on the page — this prevents static pre-rendering which would break Privy initialization.
 - Agent keys are stored in `sessionStorage` — they are cleared when the browser tab is closed. This is intentional for security.
-- WebSocket reconnects with exponential backoff (2s → 30s max). Social signals continue working even if the WebSocket is offline.
+- WebSocket reconnects with exponential backoff (2s → 30s max). Social signals and orderbook data continue working independently — if one subscription drops, it is re-sent on reconnect.
 - All monetary values are in USD. Pacifica uses USDC as collateral.
+- The `reduce_only` field is excluded from signed payloads when `false` to prevent Ed25519 signature mismatches with the Pacifica API.
 
 ---
 
