@@ -242,26 +242,6 @@ export interface ElfaMention {
   timestamp: number;
 }
 
-export interface SocialSignal {
-  id: string;
-  asset: string;
-  sentiment: WhaleSentiment;
-  score: number;
-  mentionCount: number;
-  influencerCount: number;
-  source: "twitter" | "telegram" | "discord";
-  timestamp: number;
-}
-
-// Legacy alias kept for ArbScanner type compat
-export interface SmartMoneyFlow {
-  asset: string;
-  netFlow: number;
-  whaleCount: number;
-  topToken: TrendingToken;
-  socialScore: number;
-}
-
 // ─── Arb Scanner ──────────────────────────────────────────────────────────────
 
 export interface FundingSnapshot {
@@ -324,6 +304,22 @@ export interface VerifiedAlpha {
   /** Composite confidence 0-100 */
   confidence: number;
   verifiedAt: number;
+}
+
+// ─── TradingView Webhook ──────────────────────────────────────────────────────
+
+export interface WebhookEvent {
+  id: string;
+  timestamp: number;
+  walletAddress: string;
+  symbol: string;
+  side: Direction;
+  size: number;
+  orderType: "market" | "limit";
+  price?: number;
+  status: "ok" | "error";
+  error?: string;
+  orderId?: number;
 }
 
 // ─── WebSocket ────────────────────────────────────────────────────────────────

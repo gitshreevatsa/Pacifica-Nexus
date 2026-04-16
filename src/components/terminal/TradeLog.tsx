@@ -1,8 +1,3 @@
-/**
- * TradeLog.tsx
- * Session trade activity log — shows every OPEN / CLOSE / DE-RISK fired this session.
- */
-
 "use client";
 
 import { ClipboardList, Trash2, TrendingUp, TrendingDown, ArrowDownLeft } from "lucide-react";
@@ -28,10 +23,8 @@ function EntryRow({ entry }: { entry: TradeLogEntry }) {
       className="flex items-center gap-2.5 py-2 px-3 rounded-lg transition-colors"
       style={{ background: "rgba(255,255,255,0.02)" }}
     >
-      {/* Icon */}
       <TypeIcon className={cn("w-3.5 h-3.5 shrink-0", typeColor[entry.type])} />
 
-      {/* Symbol + type */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-semibold text-white">{entry.symbol}</span>
@@ -55,7 +48,6 @@ function EntryRow({ entry }: { entry: TradeLogEntry }) {
         </div>
       </div>
 
-      {/* Time */}
       <span className="text-[9px] font-mono text-slate-600 shrink-0">
         {formatTime(entry.timestamp)}
       </span>
@@ -68,7 +60,6 @@ export default function TradeLog() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0">
         <div className="flex items-center gap-2">
           <ClipboardList className="w-3.5 h-3.5 text-electric-300" />
@@ -90,7 +81,6 @@ export default function TradeLog() {
         )}
       </div>
 
-      {/* Entries */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">
         {entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-center">

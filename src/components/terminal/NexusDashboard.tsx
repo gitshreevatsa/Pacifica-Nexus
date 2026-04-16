@@ -97,7 +97,6 @@ function ResizeDivider({ onDragStart, onDragMove, onDragEnd, isDragging }: Divid
         zIndex: 10,
       }}
     >
-      {/* Visual handle pill */}
       <div
         className="rounded-full transition-all duration-150"
         style={{

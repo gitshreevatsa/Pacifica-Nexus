@@ -1,15 +1,10 @@
-/**
- * tradeLogStore.ts
- * Session-scoped trade activity log (Zustand).
- * Call addEntry from usePacifica after successful orders.
- */
-
 import { create } from "zustand";
+import type { Direction } from "@/types";
 
 export interface TradeLogEntry {
   id: string;
   symbol: string;
-  side: "LONG" | "SHORT";
+  side: Direction;
   size: number;
   price: number;
   notional: number;

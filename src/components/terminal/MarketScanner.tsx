@@ -1,9 +1,3 @@
-/**
- * MarketScanner.tsx
- * Live sortable table of all Pacifica perpetual markets.
- * Columns: Symbol · Mark · 24h% · OI · Volume · Funding/h · OI Δ1h
- */
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -93,7 +87,6 @@ export default function MarketScanner() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-electric animate-pulse" />
@@ -108,7 +101,6 @@ export default function MarketScanner() {
         <span className="text-[9px] font-mono text-slate-600">Click column header to sort</span>
       </div>
 
-      {/* Table */}
       <div className="flex-1 overflow-auto custom-scrollbar">
         <table className="w-full border-collapse min-w-[520px]">
           <thead
@@ -144,19 +136,16 @@ export default function MarketScanner() {
                   className="transition-colors hover:bg-white/[0.02]"
                   style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
                 >
-                  {/* Symbol */}
                   <td className="px-3 py-2">
                     <span className="text-[11px] font-bold text-white">{sym}</span>
                   </td>
 
-                  {/* Mark price */}
                   <td className="px-3 py-2">
                     <span className="text-[11px] font-mono text-slate-200">
                       {formatUSD(m.markPrice)}
                     </span>
                   </td>
 
-                  {/* 24h % */}
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       {isPos24h
@@ -173,21 +162,18 @@ export default function MarketScanner() {
                     </div>
                   </td>
 
-                  {/* OI */}
                   <td className="px-3 py-2">
                     <span className="text-[11px] font-mono text-slate-300">
                       {formatUSD(m.openInterest)}
                     </span>
                   </td>
 
-                  {/* Volume */}
                   <td className="px-3 py-2">
                     <span className="text-[11px] font-mono text-slate-300">
                       {formatUSD(m.volume24h)}
                     </span>
                   </td>
 
-                  {/* Funding/h */}
                   <td className="px-3 py-2">
                     <span
                       className={cn(
@@ -201,7 +187,6 @@ export default function MarketScanner() {
                     </span>
                   </td>
 
-                  {/* OI Δ1h */}
                   <td className="px-3 py-2">
                     {delta !== undefined ? (
                       <span

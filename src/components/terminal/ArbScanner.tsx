@@ -1,9 +1,3 @@
-/**
- * ArbScanner.tsx – Center panel (below chart)
- * Funding rate vs Jupiter spot → Annualized Basis Yield.
- * "Open Hedge" = Short Perp on Pacifica (POINTPULSE) + instruction to long spot on Jupiter.
- */
-
 "use client";
 
 import { useState, useCallback } from "react";
@@ -12,6 +6,7 @@ import { useArbScanner } from "@/hooks/useArbScanner";
 import { usePacifica } from "@/hooks/usePacifica";
 import type { FundingSnapshot, ArbOpportunity } from "@/types";
 import { cn, formatUSD } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 import TradeConfirmModal from "@/components/terminal/TradeConfirmModal";
 
 /** Jupiter swap URL: buy TOKEN with USDC */
@@ -170,13 +165,8 @@ export default function ArbScanner() {
   const { snapshots, opportunities, topOpportunity, isLoading, error, refetch } = useArbScanner();
   const { openPosition, hasAgent, keyStored, walletAddress, markPrices, markets } = usePacifica();
   const [hedgingMarket, setHedgingMarket] = useState<string | null>(null);
-  const [toastMsg, setToastMsg]           = useState<string | null>(null);
+  const [toastMsg, showToast]             = useToast(4_000);
   const [pending, setPending]             = useState<FundingSnapshot | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4_000);
-  }, []);
 
   const handleHedge = useCallback(
     (snap: FundingSnapshot) => {

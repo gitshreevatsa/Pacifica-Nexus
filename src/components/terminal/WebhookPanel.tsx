@@ -10,21 +10,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Webhook, Copy, Check, AlertTriangle, Circle } from "lucide-react";
 import { cn, formatTime } from "@/lib/utils";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface WebhookEvent {
-  id: string;
-  timestamp: number;
-  symbol: string;
-  side: "LONG" | "SHORT";
-  size: number;
-  orderType: "market" | "limit";
-  price?: number;
-  status: "ok" | "error";
-  error?: string;
-  orderId?: number;
-}
+import type { WebhookEvent } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

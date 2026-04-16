@@ -1,19 +1,13 @@
 "use client";
 
-/**
- * TradeConfirmModal.tsx
- * Confirmation dialog before any trade fires.
- * User enters an amount in units (lot-size multiples of 0.01).
- * USD notional, est. fee, est. liq price, TP/SL summary shown below as reference.
- */
-
 import { useState } from "react";
 import { X, TrendingUp, TrendingDown, ExternalLink, AlertTriangle, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Direction } from "@/types";
 
 export interface TradeConfirmProps {
   symbol: string;
-  side: "LONG" | "SHORT";
+  side: Direction;
   markPrice: number;
   lotSize?: number;
   minOrderSize?: number;
@@ -40,7 +34,7 @@ function snapToLot(value: number, lotSize: number): number {
   return Math.round(value / lotSize) * lotSize;
 }
 
-function estimateLiqPrice(side: "LONG" | "SHORT", entryPrice: number): number {
+function estimateLiqPrice(side: Direction, entryPrice: number): number {
   if (entryPrice <= 0) return 0;
   return side === "LONG"
     ? entryPrice * (1 - 1 / DEFAULT_LEVERAGE + MMR)

@@ -45,7 +45,6 @@ export default function MarginEfficiency() {
         Margin Efficiency
       </p>
 
-      {/* Account summary */}
       {accountHealth && (
         <div className="grid grid-cols-3 gap-1.5">
           {[
@@ -74,12 +73,10 @@ export default function MarginEfficiency() {
         </div>
       )}
 
-      {/* No positions empty state */}
       {openPositions.length === 0 && (
         <p className="text-center text-slate-600 text-xs py-6">No open positions</p>
       )}
 
-      {/* Per-position cards */}
       <div className="flex flex-col gap-2">
         {positionData.map(({ position, marginShare, efficiency, isOverconcentrated }) => {
           const isLong = position.side === "LONG";
@@ -103,7 +100,6 @@ export default function MarginEfficiency() {
                   : "1px solid transparent",
               }}
             >
-              {/* Top row */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-white">{position.symbol}</span>
@@ -123,7 +119,6 @@ export default function MarginEfficiency() {
                 </span>
               </div>
 
-              {/* Progress bar */}
               <div
                 className="h-1.5 rounded-full overflow-hidden mb-2"
                 style={{ background: "rgba(255,255,255,0.06)" }}
@@ -134,7 +129,6 @@ export default function MarginEfficiency() {
                 />
               </div>
 
-              {/* Bottom stats row */}
               <div className="flex items-center justify-between text-[10px] font-mono">
                 <div className="flex items-center gap-1 text-slate-400">
                   {position.unrealizedPnl >= 0 ? (
@@ -155,7 +149,6 @@ export default function MarginEfficiency() {
                 </span>
               </div>
 
-              {/* Overconcentration warning */}
               {isOverconcentrated && (
                 <div className="flex items-center gap-1 mt-2 text-[10px] font-mono text-warning">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -167,7 +160,6 @@ export default function MarginEfficiency() {
         })}
       </div>
 
-      {/* Recommendations */}
       {openPositions.length > 0 && (
         <div
           className="rounded-xl p-3 space-y-1.5"

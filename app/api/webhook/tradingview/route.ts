@@ -17,24 +17,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PacificaClient } from "@/lib/pacifica-client";
 import { importAgentKey } from "@/lib/signing";
+import type { WebhookEvent } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-// ─── In-memory event log (module scope, max 50) ───────────────────────────────
-
-export interface WebhookEvent {
-  id: string;
-  timestamp: number;
-  walletAddress: string;
-  symbol: string;
-  side: "LONG" | "SHORT";
-  size: number;
-  orderType: "market" | "limit";
-  price?: number;
-  status: "ok" | "error";
-  error?: string;
-  orderId?: number;
-}
 
 const events: WebhookEvent[] = [];
 

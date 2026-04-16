@@ -18,7 +18,7 @@ const PING_INTERVAL  = 30_000;
 type MsgHandler = (msg: unknown) => void;
 
 const subscribers = new Set<MsgHandler>();
-const onConnectCallbacks = new Set<() => void>();  // called each time WS opens
+const onConnectCallbacks = new Set<() => void>();
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -26,43 +26,35 @@ let pingTimer: ReturnType<typeof setInterval> | null = null;
 let reconnectDelay = RECONNECT_BASE;
 let started = false;
 
-function send(payload: unknown) {
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(payload));
-  }
-}
-
 function connect() {
   if (typeof window === "undefined" || !WS_URL) return;
-  try {
-    ws = new WebSocket(WS_URL);
 
-    ws.onopen = () => {
-      reconnectDelay = RECONNECT_BASE;
-      // Re-send all pending subscriptions
-      onConnectCallbacks.forEach((cb) => cb());
-      // Heartbeat
-      pingTimer = setInterval(() => {
-        if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ method: "ping" }));
-      }, PING_INTERVAL);
-    };
+  ws = new WebSocket(WS_URL);
 
-    ws.onmessage = (ev: MessageEvent) => {
-      let msg: unknown;
-      try { msg = JSON.parse(ev.data as string); } catch { return; }
-      subscribers.forEach((cb) => cb(msg));
-    };
+  ws.onopen = () => {
+    reconnectDelay = RECONNECT_BASE;
+    onConnectCallbacks.forEach((cb) => cb());
+    pingTimer = setInterval(
+      () => ws?.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ method: "ping" })),
+      PING_INTERVAL
+    );
+  };
 
-    ws.onclose = () => {
-      if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
-      reconnectTimer = setTimeout(() => {
-        reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX);
-        connect();
-      }, reconnectDelay);
-    };
+  ws.onmessage = (ev: MessageEvent) => {
+    let msg: unknown;
+    try { msg = JSON.parse(ev.data as string); } catch { return; }
+    subscribers.forEach((cb) => cb(msg));
+  };
 
-    ws.onerror = () => ws?.close();
-  } catch { /* SSR */ }
+  ws.onclose = () => {
+    if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+    reconnectTimer = setTimeout(() => {
+      reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX);
+      connect();
+    }, reconnectDelay);
+  };
+
+  ws.onerror = () => ws?.close();
 }
 
 /** Ensure the singleton connection is started (idempotent). */
@@ -90,9 +82,11 @@ export function onConnect(cb: () => void): () => void {
   return () => onConnectCallbacks.delete(cb);
 }
 
-/** Send a subscription message (queued until open). */
+/** Send a subscription message (no-op if socket is not open). */
 export function wsSend(payload: unknown) {
-  send(payload);
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(payload));
+  }
 }
 
 export function isConnected() {

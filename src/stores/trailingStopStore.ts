@@ -1,15 +1,10 @@
-/**
- * trailingStopStore.ts
- * Zustand store for per-position trailing stop configuration.
- * No persistence — session-scoped.
- */
-
 import { create } from "zustand";
+import type { Direction } from "@/types";
 
 export interface TrailingStop {
   positionId: string;       // `${symbol}-${side}`  (matches Position.id)
   symbol: string;
-  side: "LONG" | "SHORT";
+  side: Direction;
   trailPct: number;         // e.g. 2 = 2%
   enabled: boolean;
   waterMark: number;        // best price seen (initialized to entry price)

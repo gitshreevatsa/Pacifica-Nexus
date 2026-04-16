@@ -28,8 +28,7 @@ import {
 import { usePacifica } from "@/hooks/usePacifica";
 import { useFundingAlertStore } from "@/stores/fundingAlertStore";
 import { useFundingAlerts } from "@/hooks/useFundingAlerts";
-import { truncateAddress, formatUSD } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { truncateAddress, formatUSD, cn } from "@/lib/utils";
 import type { Market } from "@/types";
 
 // ─── Agent Key Modal ──────────────────────────────────────────────────────────

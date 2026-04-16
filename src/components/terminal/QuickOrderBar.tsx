@@ -1,25 +1,18 @@
-/**
- * QuickOrderBar.tsx
- * Persistent bottom strip for manual orders.
- * Symbol · Market/Limit toggle · Long/Short · Size (units or % equity) · TP/SL · Fire
- *
- * Keyboard shortcuts (when no input is focused):
- *   B = Long   S = Short   Escape = close confirm modal
- */
-
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Zap, ChevronDown, Settings2, X } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
 import { cn, formatUSD } from "@/lib/utils";
+import type { Direction } from "@/types";
+import { useToast } from "@/hooks/useToast";
 import TradeConfirmModal from "@/components/terminal/TradeConfirmModal";
 
 export default function QuickOrderBar() {
   const { markets, markPrices, openPosition, keyStored, walletAddress, accountHealth } = usePacifica();
 
   const [symbol, setSymbol]           = useState<string>("");
-  const [side, setSide]               = useState<"LONG" | "SHORT">("LONG");
+  const [side, setSide]               = useState<Direction>("LONG");
   const [orderType, setOrderType]     = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice]   = useState<string>("");
   const [sizeMode, setSizeMode]       = useState<"usd" | "pct">("usd");
@@ -28,13 +21,8 @@ export default function QuickOrderBar() {
   const [slPrice, setSlPrice]         = useState<string>("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showConfirm, setShowConfirm]   = useState(false);
-  const [toastMsg, setToastMsg]         = useState<string | null>(null);
+  const [toastMsg, showToast]           = useToast();
   const [trading, setTrading]           = useState(false);
-
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3_000);
-  }, []);
 
   const activeSymbol = symbol || markets[0]?.symbol || "";
   const activeMarket = markets.find((m) => m.symbol === activeSymbol);

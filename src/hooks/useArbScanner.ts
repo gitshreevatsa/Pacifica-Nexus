@@ -12,8 +12,6 @@ import type { FundingSnapshot, ArbOpportunity, Market } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const JUPITER_PRICE_API =
-  process.env.NEXT_PUBLIC_JUPITER_PRICE_API ?? "https://price.jup.ag/v6/price";
 
 /** Minimum annualized yield (%) to flag as actionable. */
 const MIN_YIELD_THRESHOLD = 15;
@@ -64,37 +62,15 @@ const SPOT_MINT: Record<string, string> = {
 
 // ─── Jupiter Price Fetcher ────────────────────────────────────────────────────
 
-interface JupiterPriceResponse {
-  data: Record<string, { id: string; mintSymbol: string; vsToken: string; price: number }>;
-}
-
 async function fetchJupiterPrices(
   mints: string[]
 ): Promise<Record<string, number>> {
-  try {
-    const ids = mints.join(",");
-    const res = await fetch(`${JUPITER_PRICE_API}?ids=${ids}&vsToken=USDC`);
-    if (!res.ok) return getMockSpotPrices();
-    const json: JupiterPriceResponse = await res.json();
-    const prices = Object.fromEntries(
-      Object.entries(json.data ?? {}).map(([mint, v]) => [mint, v.price])
-    );
-    // Fall back to mock if we got an empty map
-    return Object.keys(prices).length > 0 ? prices : getMockSpotPrices();
-  } catch {
-    return getMockSpotPrices();
-  }
-}
-
-/** Mock spot prices for local dev before Jupiter API is wired. */
-function getMockSpotPrices(): Record<string, number> {
-  return {
-    So11111111111111111111111111111111111111112: 155.42,
-    "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ5P": 62_480,
-    "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs": 3_410,
-    jtojtomepa8bdiya1GFtu1hZ3UGxmkKmxiqYCCCGwwpGXk: 2.84,
-    JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN: 0.87,
-  };
+  const res = await fetch(`/api/jupiter?ids=${mints.join(",")}`);
+  if (!res.ok) return {};
+  const json: Record<string, { usdPrice: number }> = await res.json();
+  return Object.fromEntries(
+    Object.entries(json).map(([mint, v]) => [mint, v.usdPrice])
+  );
 }
 
 // ─── Snapshot Builder ─────────────────────────────────────────────────────────

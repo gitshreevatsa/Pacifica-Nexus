@@ -1,9 +1,3 @@
-/**
- * AlphaFeed.tsx – Left panel
- * Dual-Signal Discovery Engine — "Verified Alpha" when Elfa social + Pacifica whale agree.
- * "Mirror Trade" fires a market order on Pacifica with POINTPULSE builder code.
- */
-
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -13,8 +7,9 @@ import {
 } from "lucide-react";
 import { useWhaleStream } from "@/hooks/useWhaleStream";
 import { usePacifica } from "@/hooks/usePacifica";
-import type { VerifiedAlpha, AlphaSocialSignal } from "@/types";
+import type { VerifiedAlpha, AlphaSocialSignal, Direction } from "@/types";
 import { cn, formatTime } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 import TradeConfirmModal from "@/components/terminal/TradeConfirmModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -218,7 +213,7 @@ function SocialCard({
   sparklineData,
 }: {
   signal: AlphaSocialSignal;
-  onTrade: (signal: AlphaSocialSignal, side: "LONG" | "SHORT") => void;
+  onTrade: (signal: AlphaSocialSignal, side: Direction) => void;
   isTrading: boolean;
   sparklineData?: number[];
 }) {
@@ -375,7 +370,7 @@ function WsStatusDot({ connected }: { connected: boolean }) {
 
 type Pending =
   | { kind: "verified"; alpha: VerifiedAlpha }
-  | { kind: "social"; signal: AlphaSocialSignal; side: "LONG" | "SHORT" };
+  | { kind: "social"; signal: AlphaSocialSignal; side: Direction };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -394,7 +389,7 @@ export default function AlphaFeed() {
   } = useWhaleStream();
 
   const [tradingId, setTradingId] = useState<string | null>(null);
-  const [toastMsg,  setToastMsg]  = useState<string | null>(null);
+  const [toastMsg, showToast]    = useToast(3_500);
   const [pending,   setPending]   = useState<Pending | null>(null);
 
   // Sentiment history: symbol → last 20 changePercent samples for sparklines
@@ -409,11 +404,6 @@ export default function AlphaFeed() {
     });
   }, [socialSignals]);
 
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3_500);
-  }, []);
-
   // Guard checks shared by both card types
   const guardCheck = useCallback((): boolean => {
     if (!keyStored)      { showToast("Paste your Agent Key in the top bar first."); return false; }
@@ -427,7 +417,7 @@ export default function AlphaFeed() {
   }, [guardCheck]);
 
   const handleSocialTrade = useCallback(
-    (signal: AlphaSocialSignal, side: "LONG" | "SHORT") => {
+    (signal: AlphaSocialSignal, side: Direction) => {
       if (!guardCheck()) return;
       setPending({ kind: "social", signal, side });
     },
@@ -461,7 +451,7 @@ export default function AlphaFeed() {
   const modalProps = pending
     ? {
         symbol: pending.kind === "verified" ? pending.alpha.symbol : pending.signal.symbol,
-        side:   (pending.kind === "verified" ? pending.alpha.direction : pending.side) as "LONG" | "SHORT",
+        side:   (pending.kind === "verified" ? pending.alpha.direction : pending.side) as Direction,
         markPrice: pending.kind === "verified"
           ? pending.alpha.whale.price
           : (markPrices[pending.signal.symbol] ?? 0),

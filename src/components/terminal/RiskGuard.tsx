@@ -1,9 +1,3 @@
-/**
- * RiskGuard.tsx – Right panel
- * Account health + liquidation risk monitor.
- * "De-Risk" button trims 25% of any endangered position.
- */
-
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -11,6 +5,7 @@ import { Shield, AlertTriangle, TrendingDown, Activity, Layers, Zap, Settings2 }
 import { usePacifica } from "@/hooks/usePacifica";
 import type { Position, AccountHealth } from "@/types";
 import { cn, formatUSD } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 import MarginEfficiency from "@/components/terminal/MarginEfficiency";
 
 // ─── Segmented Health Bar ─────────────────────────────────────────────────────
@@ -377,7 +372,7 @@ export default function RiskGuard() {
   const { positions, accountHealth, deRisk25Pct, keyStored, walletAddress } = usePacifica();
   const [rightTab, setRightTab] = useState<"risk" | "margin">("risk");
   const [deRiskingId, setDeRiskingId] = useState<string | null>(null);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastMsg, showToast] = useToast();
 
   // Auto de-risk rule state — persisted in localStorage
   const [autoDeRisk, setAutoDeRisk] = useState<boolean>(() => {
@@ -404,11 +399,6 @@ export default function RiskGuard() {
   const updateThreshold = useCallback((val: number) => {
     setAutoThreshold(val);
     localStorage.setItem("nexus_auto_derisk_threshold", String(val));
-  }, []);
-
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3_000);
   }, []);
 
   const handleDeRisk = useCallback(async (position: Position) => {

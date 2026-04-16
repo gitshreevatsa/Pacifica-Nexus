@@ -27,6 +27,7 @@ import type {
   PacificaOrder,
   PacificaSide,
   TIF,
+  Direction,
 } from "@/types";
 import { BUILDER_CODE } from "@/types";
 
@@ -115,7 +116,7 @@ function mergeMarket(info: MarketInfo, price: MarketPrice): Market {
 
 /** Liquidation price — simplified cross-margin estimate. */
 function computeLiqPrice(
-  side: "LONG" | "SHORT",
+  side: Direction,
   entryPrice: number,
   leverage: number,
   mmr = 0.005
@@ -174,7 +175,7 @@ function normalizeHealth(raw: PacificaAccount): AccountHealth {
 
 export interface OrderParams {
   symbol:      string;
-  side:        "LONG" | "SHORT";
+  side:        Direction;
   size:        number;
   price?:      number;
   tif?:        TIF;
@@ -204,6 +205,23 @@ function parseLotSizeError(err: unknown): number | null {
   const msg = err instanceof Error ? err.message : String(err);
   const match = msg.match(/lot size (\d+\.?\d*)/i);
   return match ? parseFloat(match[1]) : null;
+}
+
+/**
+ * Run an order attempt, then retry once with the server-corrected lot size if
+ * Pacifica rejects the amount with a "not a multiple of lot size X" error.
+ */
+async function retryWithLotSize(
+  attempt: (lotSize: number) => Promise<{ order_id: number }>,
+  initialLotSize: number
+): Promise<{ order_id: number }> {
+  try {
+    return await attempt(initialLotSize);
+  } catch (e) {
+    const serverLotSize = parseLotSizeError(e);
+    if (serverLotSize) return attempt(serverLotSize);
+    throw e;
+  }
 }
 
 export class PacificaClient {
@@ -307,12 +325,10 @@ export class PacificaClient {
   ): Promise<Position[]> {
     const addr = address ?? this.mainWallet;
     if (!addr) throw new Error("No wallet address");
-    // /positions returns { data: [...], last_order_id } not wrapped in success
-    const resp = await apiFetch<{ data: PacificaPosition[] }>(`/positions?account=${addr}`);
-    const raw: PacificaPosition[] = resp.data ?? (resp as unknown as PacificaPosition[]);
-    return Array.isArray(raw)
-      ? raw.map((p) => normalizePosition(p, markPrices, leverage))
-      : [];
+    // /positions returns { data: [...], last_order_id } — not wrapped in success/data like other endpoints
+    const resp = await apiFetch<{ data?: PacificaPosition[] } | PacificaPosition[]>(`/positions?account=${addr}`);
+    const raw: PacificaPosition[] = Array.isArray(resp) ? resp : (resp as { data?: PacificaPosition[] }).data ?? [];
+    return raw.map((p) => normalizePosition(p, markPrices, leverage));
   }
 
   async getOpenOrders(address?: string): Promise<PacificaOrder[]> {
@@ -334,7 +350,6 @@ export class PacificaClient {
     return localStorage.getItem(`pacifica_bound_${addr}_${agentPubKey}`) === "1";
   }
 
-  /** Mark agent key as bound in sessionStorage so banner doesn't re-appear. */
   markAgentKeyBound(): void {
     const addr        = this.mainWallet;
     const agentPubKey = this.agentKeypair?.publicKey;
@@ -358,7 +373,6 @@ export class PacificaClient {
     const expiryWindow = 30_000;
     const agentPubKey  = this.agentKeypair.publicKey;
 
-    // Signed by MAIN wallet (agent isn't trusted yet)
     const toSign = compact({
       type:          "bind_agent_wallet",
       timestamp,
@@ -417,7 +431,6 @@ export class PacificaClient {
     const timestamp    = Date.now();
     const expiryWindow = 30_000;
 
-    // Build the message to sign (same format as all other requests)
     const toSign = compact({
       type:          "approve_builder_code",
       timestamp,
@@ -449,8 +462,7 @@ export class PacificaClient {
   /** Market order — POST /orders/create_market */
   async createMarketOrder(params: OrderParams): Promise<{ order_id: number }> {
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
-
-    const attempt = (lotSize: number) => {
+    return retryWithLotSize((lotSize) => {
       const amount = snapAmount(params.size, lotSize);
       // reduce_only must always be present in the signed payload (required field).
       const data: Record<string, unknown> = {
@@ -461,29 +473,15 @@ export class PacificaClient {
         reduce_only:      params.reduceOnly === true,
         builder_code:     BUILDER_CODE,
       };
-      console.debug("[Pacifica] createMarketOrder →", { symbol: params.symbol, side, amount, lotSize, reduce_only: data.reduce_only });
       return post<{ order_id: number }>("/orders/create_market", this.signed("create_market_order", data));
-    };
-
-    try {
-      return await attempt(params.lotSize ?? 0.01);
-    } catch (e) {
-      // Auto-correct lot size from server error message and retry once
-      const serverLotSize = parseLotSizeError(e);
-      if (serverLotSize) {
-        console.debug("[Pacifica] Retrying market order with server lot size:", serverLotSize);
-        return attempt(serverLotSize);
-      }
-      throw e;
-    }
+    }, params.lotSize ?? 0.01);
   }
 
   /** Limit order — POST /orders/create */
   async createLimitOrder(params: OrderParams): Promise<{ order_id: number }> {
     if (!params.price) throw new Error("Price required for limit orders");
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
-
-    const attempt = (lotSize: number) => {
+    return retryWithLotSize((lotSize) => {
       const amount = snapAmount(params.size, lotSize);
       const data: Record<string, unknown> = {
         symbol:       params.symbol,
@@ -494,26 +492,14 @@ export class PacificaClient {
         reduce_only:  params.reduceOnly === true,
         builder_code: BUILDER_CODE,
       };
-      console.debug("[Pacifica] createLimitOrder →", { symbol: params.symbol, side, amount, price: params.price, lotSize, reduce_only: data.reduce_only });
       return post<{ order_id: number }>("/orders/create", this.signed("create_order", data));
-    };
-
-    try {
-      return await attempt(params.lotSize ?? 0.01);
-    } catch (e) {
-      const serverLotSize = parseLotSizeError(e);
-      if (serverLotSize) {
-        console.debug("[Pacifica] Retrying limit order with server lot size:", serverLotSize);
-        return attempt(serverLotSize);
-      }
-      throw e;
-    }
+    }, params.lotSize ?? 0.01);
   }
 
   /** Close position = reduce-only order on the opposite side */
   async closePosition(
     symbol: string,
-    side: "LONG" | "SHORT",
+    side: Direction,
     size: number
   ): Promise<{ order_id: number }> {
     return this.createMarketOrder({

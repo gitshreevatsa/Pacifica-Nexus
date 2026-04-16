@@ -39,11 +39,6 @@ interface ElfaTrendingRaw {
   [key: string]: unknown;
 }
 
-interface ElfaTrendingResponse {
-  success: boolean;
-  data: { tokens?: ElfaTrendingRaw[] } | ElfaTrendingRaw[];
-}
-
 interface ElfaMentionRaw {
   id?: string;
   username?: string;
@@ -114,9 +109,6 @@ export async function getTrendingTokens(
     pageSize: String(limit),
     page: "1",
   });
-
-  // Log raw shape once so we can inspect it in the browser console
-  console.debug("[Elfa] trending-tokens raw response:", JSON.stringify(raw).slice(0, 500));
 
   const list = extractList(raw);
   return list.slice(0, limit).map(normalizeTrending);

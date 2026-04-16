@@ -1,9 +1,3 @@
-/**
- * PortfolioSummaryBar.tsx
- * Slim session-performance strip rendered between the main panels and the Quick Order Bar.
- * Shows: Open PnL · Equity · Session trades · Opens · Closes/De-risks · Est. fees paid.
- */
-
 "use client";
 
 import { useMemo } from "react";
@@ -11,7 +5,6 @@ import { usePacifica } from "@/hooks/usePacifica";
 import { useTradeLogStore } from "@/stores/tradeLogStore";
 import { cn, formatUSD } from "@/lib/utils";
 
-// Average Pacifica taker fee (~0.05 %)
 const TAKER_FEE_RATE = 0.0005;
 
 function Divider() {
@@ -76,7 +69,6 @@ export default function PortfolioSummaryBar() {
 
       <Divider />
 
-      {/* Live account stats */}
       {pnl !== null && (
         <Stat
           label="Open PnL"
@@ -92,7 +84,6 @@ export default function PortfolioSummaryBar() {
         <>
           <Divider />
 
-          {/* Trade counts */}
           <Stat label="Trades"   value={String(stats.total)}   color="text-slate-300" />
           <Stat label="Opens"    value={String(stats.opens)}   color="text-neon-green/80" />
           {stats.closes > 0 && (
@@ -104,7 +95,6 @@ export default function PortfolioSummaryBar() {
 
           <Divider />
 
-          {/* Fees */}
           {stats.estimatedFees > 0 && (
             <Stat
               label="Est. Fees"

@@ -23,7 +23,7 @@ import {
   type AgentKeypair,
 } from "@/lib/signing";
 import { useAgentKeyStore } from "@/stores/agentKeyStore";
-import type { Position, PacificaOrder, AccountHealth, Market } from "@/types";
+import type { Position, PacificaOrder, AccountHealth, Market, Direction } from "@/types";
 import { useTradeLogStore } from "@/stores/tradeLogStore";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export interface UsePacificaReturn {
 
 export interface OpenPositionParams {
   symbol:     string;
-  side:       "LONG" | "SHORT";
+  side:       Direction;
   size:       number;
   price?:     number;
   orderType?: "market" | "limit";
@@ -94,7 +94,7 @@ export interface OpenPositionParams {
 
 export interface ClosePositionParams {
   symbol:      string;
-  side:        "LONG" | "SHORT";
+  side:        Direction;
   currentSize: number;
   size?:       number;
 }
@@ -112,12 +112,10 @@ export function usePacifica(): UsePacificaReturn {
     return adapterPublicKey?.toBase58() ?? null;
   }, [adapterPublicKey]);
 
-  // ── Agent key state (shared Zustand store — all usePacifica() instances in sync) ──
   const agentPublicKey   = useAgentKeyStore((s) => s.publicKey);
   const storeSetKeypair  = useAgentKeyStore((s) => s.setKeypair);
   const storeClearKeypair = useAgentKeyStore((s) => s.clearKeypair);
 
-  // Sync client on mount or when walletAddress changes
   const client = useMemo(() => {
     const c = getPacificaClient();
     if (walletAddress) c.setMainWallet(walletAddress);
@@ -126,9 +124,7 @@ export function usePacifica(): UsePacificaReturn {
     return c;
   }, [walletAddress]);
 
-  // hasAgent = key stored + Solana wallet connected (required for actual trading)
   const hasAgent = !!agentPublicKey && !!walletAddress;
-  // keyStored = key is in sessionStorage regardless of wallet state (for badge display)
   const keyStored = !!agentPublicKey;
 
   // ── Markets ────────────────────────────────────────────────────────────────
@@ -192,8 +188,6 @@ export function usePacifica(): UsePacificaReturn {
         ["pacifica", "agentKeyRegistered", walletAddress ?? "", agentPublicKey ?? ""],
         true
       );
-      // Invalidate so active query observers re-read storage immediately,
-      // fixing the banner lingering until the next page refresh.
       queryClient.invalidateQueries({ queryKey: ["pacifica", "agentKeyRegistered"] });
     },
   });
@@ -309,7 +303,7 @@ export function usePacifica(): UsePacificaReturn {
 
   const handleImportKey = useCallback((b58: string) => {
     const kp = importAgentKey(b58);
-    storeSetKeypair(kp);   // writes localStorage + updates all usePacifica() instances
+    storeSetKeypair(kp);
     client.setAgentKeypair(kp);
   }, [client, storeSetKeypair]);
 
@@ -321,7 +315,7 @@ export function usePacifica(): UsePacificaReturn {
   }, [client, storeSetKeypair]);
 
   const handleClearAgent = useCallback(() => {
-    storeClearKeypair();   // clears localStorage + updates all usePacifica() instances
+    storeClearKeypair();
     client.clearAgentKeypair();
   }, [client, storeClearKeypair]);
 

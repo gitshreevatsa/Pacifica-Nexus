@@ -1,9 +1,3 @@
-/**
- * PriceChart.tsx
- * Candlestick chart using real Pacifica /api/v1/kline data.
- * Falls back to mock data while loading or if API is unreachable.
- */
-
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";

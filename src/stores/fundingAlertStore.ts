@@ -1,9 +1,3 @@
-/**
- * fundingAlertStore.ts
- * Zustand store for user-defined funding rate alert thresholds.
- * Persists alerts across renders; resets "triggered" on page reload.
- */
-
 import { create } from "zustand";
 
 export interface FundingAlert {

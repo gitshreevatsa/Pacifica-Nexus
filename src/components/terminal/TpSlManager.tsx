@@ -1,9 +1,3 @@
-/**
- * TpSlManager.tsx
- * Smart TP/SL Manager — bracket order viewer, trailing stop configurator,
- * and breakeven SL mover for all open positions.
- */
-
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -11,12 +5,13 @@ import { Target, TrendingUp, TrendingDown, X, RefreshCw } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
 import { useTrailingStopStore } from "@/stores/trailingStopStore";
 import { cn, formatUSD } from "@/lib/utils";
-import type { Position, PacificaOrder } from "@/types";
+import { useToast } from "@/hooks/useToast";
+import type { Position, PacificaOrder, Direction } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** For a given position side, bracket orders live on the opposite Pacifica side. */
-function bracketSide(positionSide: "LONG" | "SHORT"): "bid" | "ask" {
+function bracketSide(positionSide: Direction): "bid" | "ask" {
   return positionSide === "LONG" ? "ask" : "bid";
 }
 
@@ -372,12 +367,7 @@ export default function TpSlManager() {
 
   const { stops, updateWaterMark, setSlOrderId, setStop } = useTrailingStopStore();
 
-  const [toast, setToastMsg] = useState<string | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3_000);
-  }, []);
+  const [toast, showToast] = useToast();
 
   // ── Trailing stop engine (runs on every markPrices tick) ──────────────────
   const lastSlPrice = useRef<Map<string, number>>(new Map());
