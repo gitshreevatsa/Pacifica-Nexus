@@ -64,7 +64,7 @@ Pacifica Nexus is a **professional trading terminal** built on top of the Pacifi
 
 - Always-visible fast-entry bar for any market.
 - **Market / Limit toggle**: Switch between market orders and limit orders with a price input.
-- **Size mode**: Enter size in units (e.g., 0.5 SOL) or as a percentage of your available equity.
+- **Size mode**: Enter size in USD (e.g., $100) or as a percentage of your available equity — automatically converted to the correct token quantity and snapped to lot size.
 - **TP / SL inputs**: Collapsible row to attach take-profit and stop-loss to the order at creation time (bracket orders placed as reduce-only limits).
 - **Keyboard shortcuts**: Press `B` to pre-fill Long, `S` to pre-fill Short, `Esc` to dismiss the confirmation modal.
 
@@ -309,7 +309,7 @@ When you first load the terminal:
    - Create a new agent key
    - Copy the **private key** (base58 format)
    - Paste it into the terminal modal
-   - The terminal stores it in `sessionStorage` only — it never leaves your browser
+   - The terminal stores it in `localStorage` — it persists across sessions so you only need to paste it once
 
 3. **Authorize Agent Key** — A yellow banner will appear asking you to sign once with your main wallet. This registers your agent key with Pacifica (one-time).
 
@@ -395,7 +395,7 @@ All Pacifica API calls go through `src/lib/pacifica-client.ts`.
 | `POST /orders/create`                 | Agent key   | Place limit or bracket order|
 | `POST /orders/cancel`                 | Agent key   | Cancel order                |
 
-Signed requests include: `type`, `main_wallet`, `agent_wallet`, `timestamp`, `expiry`, `signature` (Ed25519 over sorted JSON). The `reduce_only` field is only included in the signed body when `true` — omitting it when false prevents signature mismatches.
+Signed requests include: `type`, `main_wallet`, `agent_wallet`, `timestamp`, `expiry`, `signature` (Ed25519 over sorted JSON). The `reduce_only` field is always present in the signed body (as `true` or `false`) — the Pacifica API requires it in the payload for signature verification to pass.
 
 ### WebSocket (Shared Singleton — `pacifica-ws.ts`)
 
@@ -409,7 +409,7 @@ Signed requests include: `type`, `main_wallet`, `agent_wallet`, `timestamp`, `ex
 ## Key Design Decisions
 
 **Agent Keys over Wallet Popups**
-Every order goes through the agent keypair stored in `sessionStorage`. Users sign once to authorize the agent key, then trade without any wallet popups. The agent key can only trade — it cannot withdraw funds.
+Every order goes through the agent keypair stored in `localStorage`. Users sign once to authorize the agent key, then trade without any wallet popups. The key persists across sessions — no need to re-paste on every visit. The agent key can only trade — it cannot withdraw funds.
 
 **Builder Code (POINTPULSE)**
 Every market order includes `builder_code: "POINTPULSE"`. This enrolls users in Pacifica's builder rewards program. Approval is a one-time wallet signature.
@@ -443,10 +443,10 @@ npm run type-check   # TypeScript check (no emit)
 ## Environment Notes
 
 - The app uses `export const dynamic = "force-dynamic"` on the page — this prevents static pre-rendering which would break Privy initialization.
-- Agent keys are stored in `sessionStorage` — they are cleared when the browser tab is closed. This is intentional for security.
+- Agent keys are stored in `localStorage` — they persist across tab closes and browser restarts so users don't need to re-paste their key each session.
 - WebSocket reconnects with exponential backoff (2s → 30s max). Social signals and orderbook data continue working independently — if one subscription drops, it is re-sent on reconnect.
 - All monetary values are in USD. Pacifica uses USDC as collateral.
-- The `reduce_only` field is excluded from signed payloads when `false` to prevent Ed25519 signature mismatches with the Pacifica API.
+- The `reduce_only` field is always included in signed payloads (as `true` or `false`) — the Pacifica API requires this field to be present for signature verification.
 
 ---
 
