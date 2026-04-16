@@ -20,6 +20,7 @@ const ArbScanner   = dynamic(() => import("@/components/terminal/ArbScanner"),  
 const RiskGuard    = dynamic(() => import("@/components/terminal/RiskGuard"),    { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
 const TradeLog     = dynamic(() => import("@/components/terminal/TradeLog"),     { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
 const MarketScanner = dynamic(() => import("@/components/terminal/MarketScanner"), { ssr: false, loading: () => <PanelSkeleton rows={6} /> });
+const TpSlManager  = dynamic(() => import("@/components/terminal/TpSlManager"),  { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
 
 function PanelSkeleton({ rows }: { rows: number }) {
   return (
@@ -35,7 +36,7 @@ function PanelSkeleton({ rows }: { rows: number }) {
   );
 }
 
-type CenterTab = "arb" | "markets" | "trades";
+type CenterTab = "arb" | "markets" | "trades" | "tpsl";
 
 function CenterTabBar({
   active,
@@ -46,8 +47,9 @@ function CenterTabBar({
 }) {
   const tabs: { id: CenterTab; label: string }[] = [
     { id: "arb",     label: "Arbitrage Scanner" },
-    { id: "markets", label: "Market Scanner"  },
-    { id: "trades",  label: "Trade Log"       },
+    { id: "markets", label: "Market Scanner"    },
+    { id: "trades",  label: "Trade Log"         },
+    { id: "tpsl",    label: "TP / SL"           },
   ];
 
   return (
@@ -197,6 +199,11 @@ export default function NexusDashboard() {
             {centerTab === "trades" && (
               <Suspense fallback={<PanelSkeleton rows={4} />}>
                 <TradeLog />
+              </Suspense>
+            )}
+            {centerTab === "tpsl" && (
+              <Suspense fallback={<PanelSkeleton rows={4} />}>
+                <TpSlManager />
               </Suspense>
             )}
           </div>

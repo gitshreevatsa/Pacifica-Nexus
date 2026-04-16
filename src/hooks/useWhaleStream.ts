@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getTrendingTokens } from "@/lib/elfa-client";
+import { ensureConnected, onMessage, onConnect, wsSend } from "@/lib/pacifica-ws";
 import type {
   AlphaSocialSignal,
   WhaleEvent,
@@ -24,17 +25,11 @@ import type {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WS_URL =
-  process.env.NEXT_PUBLIC_PACIFICA_WS_URL || "wss://ws.pacifica.fi/ws";
-
-const WHALE_THRESHOLD_USD  = 10_000;   // min notional to count as whale
-const SOCIAL_TTL_MS        = 10 * 60 * 1000;  // 10 minutes
-const SOCIAL_REFRESH_MS    = 60 * 1000;        // re-fetch social every 60 s
-const MAX_VERIFIED         = 20;               // ring buffer cap
-const MAX_WHALE_EVENTS     = 100;
-const WS_RECONNECT_BASE_MS = 2_000;
-const WS_RECONNECT_MAX_MS  = 30_000;
-const PING_INTERVAL_MS     = 30_000;
+const WHALE_THRESHOLD_USD = 10_000;
+const SOCIAL_TTL_MS       = 10 * 60 * 1000;
+const SOCIAL_REFRESH_MS   = 60 * 1000;
+const MAX_VERIFIED        = 20;
+const MAX_WHALE_EVENTS    = 100;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -177,15 +172,9 @@ export function useWhaleStream(): UseWhaleStreamReturn {
   const [socialRefreshTick, setSocialRefreshTick] = useState(0);
 
   // Refs so callbacks always see latest state without stale closures
-  const socialRef  = useRef<AlphaSocialSignal[]>([]);
-  const whaleRef   = useRef<WhaleEvent[]>([]);
+  const socialRef   = useRef<AlphaSocialSignal[]>([]);
+  const whaleRef    = useRef<WhaleEvent[]>([]);
   const verifiedRef = useRef<VerifiedAlpha[]>([]);
-
-  const wsRef          = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pingTimer      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const reconnectDelay = useRef(WS_RECONNECT_BASE_MS);
-  const destroyed      = useRef(false);
 
   // ── Social data ───────────────────────────────────────────────────────────
 
@@ -270,88 +259,42 @@ export function useWhaleStream(): UseWhaleStreamReturn {
     setVerifiedAlphas([...verifiedRef.current]);
   }, []);
 
-  // ── WebSocket ─────────────────────────────────────────────────────────────
-
-  const connect = useCallback(() => {
-    if (destroyed.current) return;
-
-    try {
-      const ws = new WebSocket(WS_URL);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        if (destroyed.current) { ws.close(); return; }
-        reconnectDelay.current = WS_RECONNECT_BASE_MS;
-        setIsWsConnected(true);
-
-        // Subscribe to public trade channels (try both common names)
-        const sub = (channel: string) =>
-          ws.send(JSON.stringify({ method: "subscribe", params: { channel } }));
-        sub("trades");
-        sub("fills");
-        sub("all_trades");
-
-        // Heartbeat
-        pingTimer.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ method: "ping" }));
-          }
-        }, PING_INTERVAL_MS);
-      };
-
-      ws.onmessage = (ev: MessageEvent) => {
-        let msg: WsMessage;
-        try { msg = JSON.parse(ev.data as string) as WsMessage; }
-        catch { return; }
-
-        // Ignore pong
-        if (msg.channel === "pong" || msg.method === "pong") return;
-
-        const event = parseWsTradeEvent(msg);
-        if (!event) return;
-
-        // Add to whale ring buffer
-        whaleRef.current = [event, ...whaleRef.current].slice(0, MAX_WHALE_EVENTS);
-        setWhaleEvents([...whaleRef.current]);
-
-        // Check for alpha match
-        tryMatch(event);
-      };
-
-      ws.onclose = () => {
-        if (pingTimer.current) { clearInterval(pingTimer.current); pingTimer.current = null; }
-        setIsWsConnected(false);
-        if (destroyed.current) return;
-
-        // Exponential back-off reconnect
-        reconnectTimer.current = setTimeout(() => {
-          reconnectDelay.current = Math.min(
-            reconnectDelay.current * 2,
-            WS_RECONNECT_MAX_MS
-          );
-          connect();
-        }, reconnectDelay.current);
-      };
-
-      ws.onerror = () => {
-        ws.close();
-      };
-    } catch {
-      // WebSocket constructor can throw in SSR — ignore
-    }
-  }, [tryMatch]);
+  // ── WebSocket (shared singleton) ──────────────────────────────────────────
 
   useEffect(() => {
-    destroyed.current = false;
-    connect();
+    ensureConnected();
+
+    const sendTradeSubs = () => {
+      ["trades", "fills", "all_trades"].forEach((ch) =>
+        wsSend({ method: "subscribe", params: { channel: ch } })
+      );
+    };
+
+    // Re-subscribe on every reconnect + fire now if already open
+    const unsubConnect = onConnect(() => {
+      setIsWsConnected(true);
+      sendTradeSubs();
+    });
+
+    const unsubMsg = onMessage((raw) => {
+      const msg = raw as WsMessage;
+      if (!msg) return;
+      if (msg.channel === "pong" || msg.method === "pong") return;
+
+      const event = parseWsTradeEvent(msg);
+      if (!event) return;
+
+      whaleRef.current = [event, ...whaleRef.current].slice(0, MAX_WHALE_EVENTS);
+      setWhaleEvents([...whaleRef.current]);
+      tryMatch(event);
+    });
 
     return () => {
-      destroyed.current = true;
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (pingTimer.current)      clearInterval(pingTimer.current);
-      wsRef.current?.close();
+      unsubConnect();
+      unsubMsg();
+      setIsWsConnected(false);
     };
-  }, [connect]);
+  }, [tryMatch]);
 
   return {
     verifiedAlphas,

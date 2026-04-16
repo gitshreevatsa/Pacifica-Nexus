@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import {
@@ -18,6 +18,7 @@ import {
 } from "lightweight-charts";
 import { getPacificaClient } from "@/lib/pacifica-client";
 import { usePacifica } from "@/hooks/usePacifica";
+import { useOrderbookStream } from "@/hooks/useOrderbookStream";
 import { formatUSD, cn } from "@/lib/utils";
 import type { Kline } from "@/types";
 
@@ -118,6 +119,8 @@ export default function PriceChart() {
   });
 
   const activeMarket = markets.find((m) => m.symbol === selectedSymbol);
+  const { bidVolume, askVolume, imbalance } = useOrderbookStream(selectedSymbol);
+  const hasBookData = bidVolume + askVolume > 0;
 
   // ── Chart init ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -284,8 +287,30 @@ export default function PriceChart() {
         </div>
       )}
 
-      {/* Chart canvas */}
-      <div ref={chartContainerRef} className="flex-1" />
+      {/* Chart canvas + orderbook pressure overlay */}
+      <div className="flex-1 relative">
+        <div ref={chartContainerRef} className="absolute inset-0" />
+        <div className="absolute bottom-2 left-3 right-3 z-10 pointer-events-none">
+          <div className="flex items-center gap-1.5 rounded-lg px-2 py-1" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}>
+            <span className="text-[9px] font-mono text-danger shrink-0 w-10 text-right">
+              {hasBookData ? `Ask ${(((1 - imbalance) / 2) * 100).toFixed(0)}%` : "Ask —"}
+            </span>
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden flex" style={{ background: "rgba(255,255,255,0.08)" }}>
+              {hasBookData ? (
+                <>
+                  <div className="h-full transition-all duration-500" style={{ width: `${((1 - imbalance) / 2) * 100}%`, background: "rgba(255,59,92,0.8)" }} />
+                  <div className="h-full transition-all duration-500" style={{ width: `${((1 + imbalance) / 2) * 100}%`, background: "rgba(0,255,135,0.8)" }} />
+                </>
+              ) : (
+                <div className="h-full w-full" style={{ background: "rgba(255,255,255,0.06)" }} />
+              )}
+            </div>
+            <span className="text-[9px] font-mono text-neon-green shrink-0 w-10">
+              {hasBookData ? `Bid ${(((1 + imbalance) / 2) * 100).toFixed(0)}%` : "Bid —"}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

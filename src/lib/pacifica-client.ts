@@ -272,6 +272,29 @@ export class PacificaClient {
     return get<Kline[]>("/kline", params);
   }
 
+  /** Orderbook snapshot — GET /orderbook */
+  async getOrderbook(symbol: string): Promise<{
+    bids: Array<{ price: number; size: number }>;
+    asks: Array<{ price: number; size: number }>;
+  }> {
+    try {
+      const raw = await get<{
+        bids: Array<[string, string] | { price: string; amount: string }>;
+        asks: Array<[string, string] | { price: string; amount: string }>;
+      }>("/orderbook", { symbol });
+      const parse = (e: [string, string] | { price: string; amount: string }) =>
+        Array.isArray(e)
+          ? { price: parseFloat(e[0]), size: parseFloat(e[1]) }
+          : { price: parseFloat((e as { price: string; amount: string }).price), size: parseFloat((e as { price: string; amount: string }).amount) };
+      return {
+        bids: (raw.bids ?? []).map(parse),
+        asks: (raw.asks ?? []).map(parse),
+      };
+    } catch {
+      return { bids: [], asks: [] };
+    }
+  }
+
   // ── Account (GET, no auth needed) ──────────────────────────────────────────
 
   async getAccount(address?: string): Promise<AccountHealth> {

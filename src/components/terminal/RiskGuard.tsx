@@ -11,6 +11,7 @@ import { Shield, AlertTriangle, TrendingDown, Activity, Layers, Zap, Settings2 }
 import { usePacifica } from "@/hooks/usePacifica";
 import type { Position, AccountHealth } from "@/types";
 import { cn, formatUSD } from "@/lib/utils";
+import MarginEfficiency from "@/components/terminal/MarginEfficiency";
 
 // ─── Segmented Health Bar ─────────────────────────────────────────────────────
 
@@ -374,6 +375,7 @@ function LiqHeatmap({ positions }: { positions: Position[] }) {
 
 export default function RiskGuard() {
   const { positions, accountHealth, deRisk25Pct, keyStored, walletAddress } = usePacifica();
+  const [rightTab, setRightTab] = useState<"risk" | "margin">("risk");
   const [deRiskingId, setDeRiskingId] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -454,6 +456,30 @@ export default function RiskGuard() {
 
   return (
     <div className="flex flex-col h-full relative">
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 px-3 pt-2 pb-1 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        {(["risk", "margin"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setRightTab(tab)}
+            className={rightTab === tab
+              ? "market-tab-selected text-[10px] font-semibold px-2.5 py-1 rounded-lg"
+              : "market-tab text-[10px] font-semibold px-2.5 py-1 rounded-lg"
+            }
+          >
+            {tab === "risk" ? "Risk Guard" : "Margin"}
+          </button>
+        ))}
+      </div>
+
+      {rightTab === "margin" && (
+        <div className="flex-1 overflow-y-auto p-4">
+          <MarginEfficiency />
+        </div>
+      )}
+
+      {rightTab === "risk" && (
+        <>
       {/* Header */}
       <div className="px-4 py-3">
         <div className="flex items-center justify-between">
@@ -607,6 +633,8 @@ export default function RiskGuard() {
         <div className="absolute bottom-4 left-4 right-4 text-white text-xs rounded-xl px-3 py-2 animate-slide-up z-50 font-mono" style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)" }}>
           {toastMsg}
         </div>
+      )}
+        </>
       )}
     </div>
   );
