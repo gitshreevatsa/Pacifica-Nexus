@@ -156,19 +156,19 @@ export function importAgentKey(base58PrivKey: string): AgentKeypair {
 
 export function storeAgentKeypair(kp: AgentKeypair): void {
   if (typeof window === "undefined") return;
-  sessionStorage.setItem(AGENT_PRIV_KEY, kp.privateKey);
-  sessionStorage.setItem(AGENT_PUB_KEY,  kp.publicKey);
+  localStorage.setItem(AGENT_PRIV_KEY, kp.privateKey);
+  localStorage.setItem(AGENT_PUB_KEY,  kp.publicKey);
 }
 
 export function loadAgentKeypair(): AgentKeypair | null {
   if (typeof window === "undefined") return null;
-  const priv = sessionStorage.getItem(AGENT_PRIV_KEY);
-  const pub  = sessionStorage.getItem(AGENT_PUB_KEY);
+  const priv = localStorage.getItem(AGENT_PRIV_KEY);
+  const pub  = localStorage.getItem(AGENT_PUB_KEY);
   return priv && pub ? { privateKey: priv, publicKey: pub } : null;
 }
 
 export function clearAgentKeypair(): void {
   if (typeof window === "undefined") return;
-  sessionStorage.removeItem(AGENT_PRIV_KEY);
-  sessionStorage.removeItem(AGENT_PUB_KEY);
+  localStorage.removeItem(AGENT_PRIV_KEY);
+  localStorage.removeItem(AGENT_PUB_KEY);
 }

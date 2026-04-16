@@ -22,7 +22,7 @@ export default function QuickOrderBar() {
   const [side, setSide]               = useState<"LONG" | "SHORT">("LONG");
   const [orderType, setOrderType]     = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice]   = useState<string>("");
-  const [sizeMode, setSizeMode]       = useState<"units" | "pct">("units");
+  const [sizeMode, setSizeMode]       = useState<"usd" | "pct">("usd");
   const [sizeInput, setSizeInput]     = useState<string>("");
   const [tpPrice, setTpPrice]         = useState<string>("");
   const [slPrice, setSlPrice]         = useState<string>("");
@@ -42,13 +42,14 @@ export default function QuickOrderBar() {
   const marketLotSize = activeMarket?.lotSize ?? 0.01;
   const equity       = accountHealth?.equity ?? 0;
 
-  // Compute suggested size from % equity mode
-  const computedSize = useMemo(() => {
-    if (sizeMode !== "pct") return parseFloat(sizeInput) || 0;
+  // Compute suggested USD size (passed to modal as defaultUsd)
+  const computedUsd = useMemo(() => {
+    if (sizeMode === "usd") return parseFloat(sizeInput) || 0;
+    // pct mode: % of equity in USD
     const pct = parseFloat(sizeInput) || 0;
-    if (markPrice > 0 && equity > 0 && pct > 0) return (equity * (pct / 100)) / markPrice;
+    if (equity > 0 && pct > 0) return equity * (pct / 100);
     return 0;
-  }, [sizeMode, sizeInput, equity, markPrice]);
+  }, [sizeMode, sizeInput, equity]);
 
   // Keyboard shortcuts: B = Long, S = Short, Escape = close modal
   useEffect(() => {
@@ -191,23 +192,23 @@ export default function QuickOrderBar() {
                 type="number"
                 value={sizeInput}
                 onChange={(e) => setSizeInput(e.target.value)}
-                placeholder={sizeMode === "pct" ? "% equity" : "Size…"}
+                placeholder={sizeMode === "pct" ? "% equity" : "USD"}
                 className="w-20 text-[11px] font-mono text-white rounded-lg px-2 py-1 pr-5 focus:outline-none placeholder:text-slate-600"
                 style={{ background: "rgba(255,255,255,0.06)" }}
               />
               <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-500 pointer-events-none">
-                {sizeMode === "pct" ? "%" : "u"}
+                {sizeMode === "pct" ? "%" : "$"}
               </span>
             </div>
             <button
-              onClick={() => { setSizeMode((m) => (m === "units" ? "pct" : "units")); setSizeInput(""); }}
+              onClick={() => { setSizeMode((m) => (m === "usd" ? "pct" : "usd")); setSizeInput(""); }}
               className={cn(
                 "text-[9px] font-mono px-1.5 py-1 rounded transition-colors shrink-0",
                 sizeMode === "pct" ? "bg-electric/20 text-electric-300" : "bg-white/5 text-slate-500 hover:text-slate-300"
               )}
-              title={sizeMode === "pct" ? `≈ ${computedSize > 0 ? computedSize.toFixed(4) : "—"} units — click for manual` : "Click to size by % of equity"}
+              title={sizeMode === "pct" ? `≈ $${computedUsd > 0 ? computedUsd.toFixed(2) : "—"} — click for manual USD` : "Click to size by % of equity"}
             >
-              {sizeMode === "pct" ? (computedSize > 0 ? `≈${computedSize.toFixed(3)}` : "%→u") : "%"}
+              {sizeMode === "pct" ? (computedUsd > 0 ? `≈$${computedUsd.toFixed(0)}` : "%→$") : "%"}
             </button>
           </div>
 
@@ -316,7 +317,7 @@ export default function QuickOrderBar() {
           limitPrice={orderType === "limit" ? (parseFloat(limitPrice) || undefined) : undefined}
           tpPrice={parseFloat(tpPrice) || undefined}
           slPrice={parseFloat(slPrice) || undefined}
-          defaultUnits={computedSize > 0 ? computedSize : undefined}
+          defaultUsd={computedUsd > 0 ? computedUsd : undefined}
           description={`Manual ${side.toLowerCase()} ${orderType} order on ${activeSymbol.replace("-PERP", "")} via Quick Order bar.`}
           onConfirm={handleConfirm}
           onCancel={() => setShowConfirm(false)}

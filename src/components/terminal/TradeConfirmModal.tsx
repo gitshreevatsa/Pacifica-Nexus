@@ -23,8 +23,8 @@ export interface TradeConfirmProps {
   limitPrice?: number;
   tpPrice?: number;
   slPrice?: number;
-  /** Pre-populated size from position sizing calculator */
-  defaultUnits?: number;
+  /** Pre-populated size in USD */
+  defaultUsd?: number;
   onConfirm: (units: number) => void;
   onCancel: () => void;
   isExecuting?: boolean;
@@ -34,10 +34,7 @@ const TAKER_FEE_PCT = 0.0005; // 0.05% taker fee (standard for Pacifica perps)
 const DEFAULT_LEVERAGE = 10;
 const MMR = 0.005;
 
-/** Build 4 sensible preset multiples of the given lot size. */
-function buildPresets(lotSize: number): number[] {
-  return [1, 5, 10, 50].map((m) => lotSize * m);
-}
+const USD_PRESETS = [10, 50, 100, 500];
 
 function snapToLot(value: number, lotSize: number): number {
   return Math.round(value / lotSize) * lotSize;
@@ -52,26 +49,25 @@ function estimateLiqPrice(side: "LONG" | "SHORT", entryPrice: number): number {
 
 export default function TradeConfirmModal({
   symbol, side, markPrice, lotSize = 0.01, minOrderSize = 0, description, jupiterUrl,
-  orderType = "market", limitPrice, tpPrice, slPrice, defaultUnits,
+  orderType = "market", limitPrice, tpPrice, slPrice, defaultUsd,
   onConfirm, onCancel, isExecuting,
 }: TradeConfirmProps) {
-  const presets = buildPresets(lotSize);
-  const initUnits = defaultUnits != null && defaultUnits >= lotSize
-    ? String(snapToLot(defaultUnits, lotSize))
-    : String(presets[0]);
+  const initUsd = defaultUsd != null && defaultUsd > 0 ? String(defaultUsd) : "100";
 
-  const [unitInput, setUnitInput] = useState(initUnits);
+  const [usdInput, setUsdInput] = useState(initUsd);
   const isLong = side === "LONG";
 
-  const rawUnits = parseFloat(unitInput) || 0;
-  const units    = snapToLot(Math.max(0, rawUnits), lotSize);
+  const execPrice = orderType === "limit" && limitPrice && limitPrice > 0 ? limitPrice : markPrice;
 
-  const execPrice  = orderType === "limit" && limitPrice && limitPrice > 0 ? limitPrice : markPrice;
-  const usdValue   = execPrice > 0 ? units * execPrice : 0;
-  const belowMin   = minOrderSize > 0 && usdValue > 0 && usdValue < minOrderSize;
-  const valid      = units >= lotSize && !belowMin;
+  // Convert USD → token units, snapped to lot size
+  const rawUsd  = parseFloat(usdInput) || 0;
+  const units   = execPrice > 0 ? snapToLot(rawUsd / execPrice, lotSize) : 0;
+  const usdValue = units * execPrice;
 
-  const estFee     = usdValue * TAKER_FEE_PCT;
+  const belowMin = minOrderSize > 0 && rawUsd > 0 && rawUsd < minOrderSize;
+  const valid    = units >= lotSize && execPrice > 0 && !belowMin;
+
+  const estFee      = rawUsd * TAKER_FEE_PCT;
   const estLiqPrice = estimateLiqPrice(side, execPrice > 0 ? execPrice : markPrice);
 
   const handleConfirm = () => {
@@ -80,12 +76,8 @@ export default function TradeConfirmModal({
     onConfirm(units);
   };
 
-  const handleBlur = () => {
-    if (rawUnits > 0) setUnitInput(String(snapToLot(rawUnits, lotSize)));
-  };
-
-  const selectPreset = (amt: number) => setUnitInput(String(amt));
-  const isSelected   = (amt: number) => parseFloat(unitInput) === amt;
+  const selectPreset = (amt: number) => setUsdInput(String(amt));
+  const isSelected   = (amt: number) => parseFloat(usdInput) === amt;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
@@ -126,11 +118,11 @@ export default function TradeConfirmModal({
             </div>
           </div>
 
-          {/* Unit amount input */}
+          {/* USD amount input */}
           <div>
-            <label className="term-label block mb-2">Amount ({symbol})</label>
+            <label className="term-label block mb-2">Size (USD)</label>
             <div className="grid grid-cols-4 gap-1.5 mb-2">
-              {presets.map((amt: number) => (
+              {USD_PRESETS.map((amt) => (
                 <button key={amt}
                   onClick={() => selectPreset(amt)}
                   className="py-1.5 rounded-lg text-xs font-bold transition-all duration-150"
@@ -138,37 +130,36 @@ export default function TradeConfirmModal({
                     ? { background: "rgba(0,98,255,0.25)", color: "#4d8fff" }
                     : { background: "rgba(255,255,255,0.06)", color: "#64748b" }}
                 >
-                  {amt}
+                  ${amt}
                 </button>
               ))}
             </div>
             <div className="relative">
               <input
                 type="number"
-                min={lotSize}
-                step={lotSize}
-                value={unitInput}
-                onChange={(e) => setUnitInput(e.target.value)}
-                onBlur={handleBlur}
-                placeholder={`Min ${lotSize}`}
-                className="w-full text-white text-sm font-mono rounded-lg px-3 pr-14 py-2 focus:outline-none placeholder:text-slate-600"
+                min={1}
+                step={1}
+                value={usdInput}
+                onChange={(e) => setUsdInput(e.target.value)}
+                placeholder="100"
+                className="w-full text-white text-sm font-mono rounded-lg px-3 pr-10 py-2 focus:outline-none placeholder:text-slate-600"
                 style={{ background: "rgba(255,255,255,0.06)" }}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-mono">{symbol}</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-mono">USD</span>
             </div>
             {units > 0 && execPrice > 0 && (
-              <p className={cn("text-[11px] mt-1.5 font-mono", belowMin ? "text-danger" : "text-slate-400")}>
-                ≈ <span className={cn("font-semibold", belowMin ? "text-danger" : "text-white")}>
-                  ${usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>{" "}
-                <span className="text-slate-600">notional</span>
-                {belowMin && (
-                  <span className="block text-danger mt-0.5">Min order size is ${minOrderSize.toLocaleString()}</span>
-                )}
+              <p className="text-[11px] mt-1.5 font-mono text-slate-400">
+                ≈ <span className="font-semibold text-white">{units}</span>{" "}
+                <span className="text-slate-600">{symbol.replace("-PERP", "")} tokens · ${usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} notional</span>
               </p>
             )}
-            {units > 0 && units < lotSize && (
-              <p className="text-[11px] text-danger mt-1.5 font-mono">Min lot size: {lotSize} {symbol}</p>
+            {rawUsd > 0 && units < lotSize && execPrice > 0 && (
+              <p className="text-[11px] text-danger mt-1.5 font-mono">
+                Too small — min lot is {lotSize} tokens (≈${(lotSize * execPrice).toFixed(2)})
+              </p>
+            )}
+            {belowMin && (
+              <p className="text-[11px] text-danger mt-1.5 font-mono">Min order size is ${minOrderSize.toLocaleString()}</p>
             )}
           </div>
 
@@ -249,8 +240,8 @@ export default function TradeConfirmModal({
             {isExecuting
               ? "Executing…"
               : jupiterUrl
-              ? `Confirm ${units} ${symbol} + Jupiter →`
-              : `Confirm ${units} ${symbol} ${isLong ? "Long" : "Short"}`}
+              ? `Confirm $${rawUsd} + Jupiter →`
+              : `Confirm $${rawUsd} ${isLong ? "Long" : "Short"}`}
           </button>
         </div>
 

@@ -55,11 +55,7 @@ async function apiFetch<T>(
       json?.error ?? json?.message ?? json?.detail ?? json?.msg;
     const msg = rawMsg
       ? String(rawMsg)
-      : res.status === 400
-      ? "Bad request — check signature, builder code approval, and order size."
-      : res.status === 401 || res.status === 403
-      ? "Unauthorized — agent key may be unregistered or expired."
-      : JSON.stringify(json);
+      : `[${res.status}] ${JSON.stringify(json)}`;
     console.error(`[Pacifica ${res.status}] ${path}`, json);
     throw new Error(`[${res.status}] ${msg}`);
   }
@@ -335,7 +331,7 @@ export class PacificaClient {
     const addr        = this.mainWallet;
     const agentPubKey = this.agentKeypair?.publicKey;
     if (!addr || !agentPubKey || typeof window === "undefined") return false;
-    return sessionStorage.getItem(`pacifica_bound_${addr}_${agentPubKey}`) === "1";
+    return localStorage.getItem(`pacifica_bound_${addr}_${agentPubKey}`) === "1";
   }
 
   /** Mark agent key as bound in sessionStorage so banner doesn't re-appear. */
@@ -343,7 +339,7 @@ export class PacificaClient {
     const addr        = this.mainWallet;
     const agentPubKey = this.agentKeypair?.publicKey;
     if (!addr || !agentPubKey || typeof window === "undefined") return;
-    sessionStorage.setItem(`pacifica_bound_${addr}_${agentPubKey}`, "1");
+    localStorage.setItem(`pacifica_bound_${addr}_${agentPubKey}`, "1");
   }
 
   /**
@@ -456,16 +452,16 @@ export class PacificaClient {
 
     const attempt = (lotSize: number) => {
       const amount = snapAmount(params.size, lotSize);
-      // Only include reduce_only when true — including false causes signature mismatch.
+      // reduce_only must always be present in the signed payload (required field).
       const data: Record<string, unknown> = {
         symbol:           params.symbol,
         amount,
         side,
         slippage_percent: params.slippage ?? DEFAULT_SLIPPAGE,
+        reduce_only:      params.reduceOnly === true,
         builder_code:     BUILDER_CODE,
       };
-      if (params.reduceOnly) data.reduce_only = true;
-      console.debug("[Pacifica] createMarketOrder →", { symbol: params.symbol, side, amount, lotSize });
+      console.debug("[Pacifica] createMarketOrder →", { symbol: params.symbol, side, amount, lotSize, reduce_only: data.reduce_only });
       return post<{ order_id: number }>("/orders/create_market", this.signed("create_market_order", data));
     };
 
@@ -495,10 +491,10 @@ export class PacificaClient {
         amount,
         side,
         tif:          params.tif ?? "GTC",
+        reduce_only:  params.reduceOnly === true,
         builder_code: BUILDER_CODE,
       };
-      if (params.reduceOnly) data.reduce_only = true;
-      console.debug("[Pacifica] createLimitOrder →", { symbol: params.symbol, side, amount, price: params.price, lotSize });
+      console.debug("[Pacifica] createLimitOrder →", { symbol: params.symbol, side, amount, price: params.price, lotSize, reduce_only: data.reduce_only });
       return post<{ order_id: number }>("/orders/create", this.signed("create_order", data));
     };
 

@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -19,11 +19,10 @@ import { getPacificaClient } from "@/lib/pacifica-client";
 import {
   importAgentKey,
   generateAgentKeypair,
-  storeAgentKeypair,
   loadAgentKeypair,
-  clearAgentKeypair,
   type AgentKeypair,
 } from "@/lib/signing";
+import { useAgentKeyStore } from "@/stores/agentKeyStore";
 import type { Position, PacificaOrder, AccountHealth, Market } from "@/types";
 import { useTradeLogStore } from "@/stores/tradeLogStore";
 
@@ -113,11 +112,10 @@ export function usePacifica(): UsePacificaReturn {
     return adapterPublicKey?.toBase58() ?? null;
   }, [adapterPublicKey]);
 
-  // ── Agent key state ────────────────────────────────────────────────────────
-  const [agentPublicKey, setAgentPublicKey] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return loadAgentKeypair()?.publicKey ?? null;
-  });
+  // ── Agent key state (shared Zustand store — all usePacifica() instances in sync) ──
+  const agentPublicKey   = useAgentKeyStore((s) => s.publicKey);
+  const storeSetKeypair  = useAgentKeyStore((s) => s.setKeypair);
+  const storeClearKeypair = useAgentKeyStore((s) => s.clearKeypair);
 
   // Sync client on mount or when walletAddress changes
   const client = useMemo(() => {
@@ -194,6 +192,9 @@ export function usePacifica(): UsePacificaReturn {
         ["pacifica", "agentKeyRegistered", walletAddress ?? "", agentPublicKey ?? ""],
         true
       );
+      // Invalidate so active query observers re-read storage immediately,
+      // fixing the banner lingering until the next page refresh.
+      queryClient.invalidateQueries({ queryKey: ["pacifica", "agentKeyRegistered"] });
     },
   });
 
@@ -308,24 +309,21 @@ export function usePacifica(): UsePacificaReturn {
 
   const handleImportKey = useCallback((b58: string) => {
     const kp = importAgentKey(b58);
-    storeAgentKeypair(kp);
+    storeSetKeypair(kp);   // writes localStorage + updates all usePacifica() instances
     client.setAgentKeypair(kp);
-    setAgentPublicKey(kp.publicKey);
-  }, [client]);
+  }, [client, storeSetKeypair]);
 
   const handleGenerateKey = useCallback((): AgentKeypair => {
     const kp = generateAgentKeypair();
-    storeAgentKeypair(kp);
+    storeSetKeypair(kp);
     client.setAgentKeypair(kp);
-    setAgentPublicKey(kp.publicKey);
     return kp;
-  }, [client]);
+  }, [client, storeSetKeypair]);
 
   const handleClearAgent = useCallback(() => {
-    clearAgentKeypair();
+    storeClearKeypair();   // clears localStorage + updates all usePacifica() instances
     client.clearAgentKeypair();
-    setAgentPublicKey(null);
-  }, [client]);
+  }, [client, storeClearKeypair]);
 
   // ── Trading actions ────────────────────────────────────────────────────────
 

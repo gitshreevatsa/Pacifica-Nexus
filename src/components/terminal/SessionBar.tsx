@@ -87,7 +87,7 @@ function AgentKeyModal({
           {[
             { n: 1, text: "Create an Agent Key at Pacifica", link: "https://app.pacifica.fi/apikey" },
             { n: 2, text: "Copy the private key (base58)" },
-            { n: 3, text: "Paste below — stored only in sessionStorage" },
+            { n: 3, text: "Paste below — saved in localStorage (persists across sessions)" },
           ].map(({ n, text, link }) => (
             <div key={n} className="flex items-start gap-2">
               <span className="w-4 h-4 rounded-full bg-electric/20 text-electric text-[10px] flex items-center justify-center shrink-0 mt-0.5 font-bold">
@@ -472,7 +472,7 @@ export default function SessionBar() {
                 <AgentBadge publicKey={agentPublicKey} onClear={clearAgent} />
               ) : (
                 <button onClick={() => setShowModal(true)}
-                  title="A session-scoped signing key that lets this terminal place orders without wallet popups. Stored only in sessionStorage — never transmitted."
+                  title="A signing key that lets this terminal place orders without wallet popups. Saved in localStorage so you don't need to re-enter it — never transmitted to any server."
                   className="flex items-center gap-1.5 bg-electric hover:bg-electric-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors shadow-electric animate-pulse">
                   <Key className="w-3 h-3" />
                   Authorize Agent Key
@@ -504,7 +504,7 @@ export default function SessionBar() {
             <span className="text-electric-300 font-semibold">Authorize Agent Key</span>{" "}
             to enable one-click trading.{" "}
             <span className="text-slate-500">
-              An Agent Key is a session-scoped signing key that lets the terminal submit orders without wallet popups — it never leaves your browser.
+              An Agent Key is a signing key that lets the terminal submit orders without wallet popups — saved in localStorage so you only need to paste it once.
             </span>
           </span>
         </div>
