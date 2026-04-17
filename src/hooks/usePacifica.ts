@@ -19,12 +19,13 @@ import { getPacificaClient } from "@/lib/pacifica-client";
 import {
   importAgentKey,
   generateAgentKeypair,
-  loadAgentKeypair,
   type AgentKeypair,
 } from "@/lib/signing";
+import { deleteVault } from "@/lib/keyVault";
 import { useAgentKeyStore } from "@/stores/agentKeyStore";
 import type { Position, PacificaOrder, AccountHealth, Market, Direction } from "@/types";
 import { useTradeLogStore } from "@/stores/tradeLogStore";
+import { toast } from "@/stores/toastStore";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
@@ -112,17 +113,19 @@ export function usePacifica(): UsePacificaReturn {
     return adapterPublicKey?.toBase58() ?? null;
   }, [adapterPublicKey]);
 
-  const agentPublicKey   = useAgentKeyStore((s) => s.publicKey);
-  const storeSetKeypair  = useAgentKeyStore((s) => s.setKeypair);
+  const agentPublicKey    = useAgentKeyStore((s) => s.publicKey);
+  const agentPrivateKey   = useAgentKeyStore((s) => s.privateKey);
+  const storeSetKeypair   = useAgentKeyStore((s) => s.setKeypair);
   const storeClearKeypair = useAgentKeyStore((s) => s.clearKeypair);
 
   const client = useMemo(() => {
     const c = getPacificaClient();
     if (walletAddress) c.setMainWallet(walletAddress);
-    const stored = loadAgentKeypair();
-    if (stored) c.setAgentKeypair(stored);
+    if (agentPublicKey && agentPrivateKey) {
+      c.setAgentKeypair({ publicKey: agentPublicKey, privateKey: agentPrivateKey });
+    }
     return c;
-  }, [walletAddress]);
+  }, [walletAddress, agentPublicKey, agentPrivateKey]);
 
   const hasAgent = !!agentPublicKey && !!walletAddress;
   const keyStored = !!agentPublicKey;
@@ -190,6 +193,9 @@ export function usePacifica(): UsePacificaReturn {
       );
       queryClient.invalidateQueries({ queryKey: ["pacifica", "agentKeyRegistered"] });
     },
+    onError: (err) => {
+      toast.error(`Agent key registration failed: ${err instanceof Error ? err.message : String(err)}`);
+    },
   });
 
   const registerAgentKey = useCallback(async () => {
@@ -210,10 +216,13 @@ export function usePacifica(): UsePacificaReturn {
       if (!adapterSignMessage) throw new Error("Wallet does not support signMessage");
       return client.approveBuilderCode(adapterSignMessage);
     },
-    onSuccess:  () => {
+    onSuccess: () => {
       if (walletAddress) {
         queryClient.setQueryData(QK.builderApproved(walletAddress), true);
       }
+    },
+    onError: (err) => {
+      toast.error(`Builder approval failed: ${err instanceof Error ? err.message : String(err)}`);
     },
   });
 
@@ -271,6 +280,9 @@ export function usePacifica(): UsePacificaReturn {
         orderId: result.order_id,
       });
     },
+    onError: (err) => {
+      toast.error(`Order failed: ${err instanceof Error ? err.message : String(err)}`);
+    },
   });
 
   const closeMutation = useMutation({
@@ -291,12 +303,18 @@ export function usePacifica(): UsePacificaReturn {
         orderId: result.order_id,
       });
     },
+    onError: (err) => {
+      toast.error(`Close failed: ${err instanceof Error ? err.message : String(err)}`);
+    },
   });
 
   const cancelMutation = useMutation({
     mutationFn: ({ symbol, orderId }: { symbol: string; orderId: number }) =>
       client.cancelOrder(symbol, orderId),
     onSuccess: invalidateTrades,
+    onError: (err) => {
+      toast.error(`Cancel failed: ${err instanceof Error ? err.message : String(err)}`);
+    },
   });
 
   // ── Agent key management ───────────────────────────────────────────────────
@@ -317,6 +335,7 @@ export function usePacifica(): UsePacificaReturn {
   const handleClearAgent = useCallback(() => {
     storeClearKeypair();
     client.clearAgentKeypair();
+    deleteVault(); // remove encrypted vault so next session starts fresh
   }, [client, storeClearKeypair]);
 
   // ── Trading actions ────────────────────────────────────────────────────────

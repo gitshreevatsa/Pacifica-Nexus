@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import SessionBar from "@/components/terminal/SessionBar";
 import QuickOrderBar from "@/components/terminal/QuickOrderBar";
 import PortfolioSummaryBar from "@/components/terminal/PortfolioSummaryBar";
+import { useToastStore } from "@/stores/toastStore";
 
 const AlphaFeed    = dynamic(() => import("@/components/terminal/AlphaFeed"),    { ssr: false, loading: () => <PanelSkeleton rows={6} /> });
 const PriceChart   = dynamic(() => import("@/components/terminal/PriceChart"),   { ssr: false, loading: () => <div className="flex-1 animate-pulse rounded-2xl" style={{ background: "rgba(255,255,255,0.02)" }} /> });
@@ -32,6 +33,47 @@ function PanelSkeleton({ rows }: { rows: number }) {
           style={{ background: "rgba(255,255,255,0.04)", animationDelay: `${i * 0.08}s` }}
         />
       ))}
+    </div>
+  );
+}
+
+// ─── Global error/info toast ──────────────────────────────────────────────────
+
+function GlobalToast() {
+  const { message, variant, clear } = useToastStore();
+  if (!message) return null;
+
+  const bg =
+    variant === "error"
+      ? "rgba(220,38,38,0.85)"
+      : variant === "success"
+      ? "rgba(22,163,74,0.85)"
+      : "rgba(30,40,70,0.92)";
+
+  return (
+    <div
+      onClick={clear}
+      style={{
+        position: "fixed",
+        bottom: 80,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: bg,
+        backdropFilter: "blur(10px)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 10,
+        padding: "10px 20px",
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: 500,
+        zIndex: 9999,
+        cursor: "pointer",
+        maxWidth: 480,
+        textAlign: "center",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+      }}
+    >
+      {message}
     </div>
   );
 }
@@ -221,6 +263,9 @@ export default function NexusDashboard() {
 
       {/* Bottom — Quick Order Bar */}
       <QuickOrderBar />
+
+      {/* Global error / success toasts from mutation onError handlers */}
+      <GlobalToast />
     </div>
   );
 }

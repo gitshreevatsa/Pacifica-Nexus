@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "@/lib/env"; // validates env vars at boot — crashes early on bad config
 import PrivyProvider from "@/components/providers/PrivyProvider";
 import QueryProvider from "@/components/providers/QueryProvider";
 import SolanaWalletProvider from "@/components/providers/SolanaWalletProvider";

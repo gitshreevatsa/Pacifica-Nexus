@@ -75,7 +75,8 @@ Pacifica Nexus is a **professional trading terminal** built on top of the Pacifi
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Next.js App Router                      │
-│  app/layout.tsx → PrivyProvider → SolanaWalletProvider      │
+│  app/layout.tsx → env.ts (Zod validation at boot)           │
+│               → PrivyProvider → SolanaWalletProvider        │
 │               → QueryProvider → NexusDashboard              │
 └──────────┬──────────────────────────────────────────────────┘
            │
@@ -112,7 +113,10 @@ All real-time hooks (`useWhaleStream`, `useOrderbookStream`) share **one** WebSo
 **Authentication:**
 
 ```
-User connects wallet → imports agent key (base58) from app.pacifica.fi/apikey
+User connects wallet → imports agent key (base58) + sets passphrase
+  → keyVault.encryptKey() → AES-GCM encrypted blob saved to localStorage
+  → decrypted private key held in memory (Zustand agentKeyStore.privateKey)
+  → On page refresh: UnlockKeyModal prompts passphrase → decrypts into memory
   → registerAgentKey() signs once with main wallet → agent key authorized
   → approveBuilderCode() signs once → Pacifica-Nexus builder fee enabled
   → All future orders signed automatically by agent key (no popups)
@@ -161,14 +165,16 @@ WS subscribe { source: "book", symbol, agg_level: 100 }
 
 | Layer            | Technology                                          |
 | ---------------- | --------------------------------------------------- |
-| Framework        | Next.js 14 (App Router, `force-dynamic`)            |
+| Framework        | Next.js 16 (App Router, `force-dynamic`)            |
 | UI               | React 18, Tailwind CSS 3, Lucide Icons              |
 | Charts           | Lightweight Charts 4 (TradingView)                  |
 | State / Fetching | TanStack React Query 5, Zustand                     |
 | Wallet           | Solana Wallet Adapter (Phantom, MetaMask, Solflare) |
 | Signing          | TweetNaCl + bs58 (agent keypair signing)            |
+| Key Security     | Web Crypto API — AES-256-GCM + PBKDF2               |
+| Env Validation   | Zod                                                 |
 | Social Data      | Elfa AI v2 API                                      |
-| Spot Prices      | Jupiter Price API v6                                |
+| Spot Prices      | Jupiter Price API v6 (key optional)                 |
 | Perp Data        | Pacifica REST + WebSocket                           |
 
 ---
@@ -200,6 +206,7 @@ WS subscribe { source: "book", symbol, agg_level: 100 }
 │   │       ├── MarginEfficiency.tsx  # Per-position margin share + efficiency score
 │   │       ├── QuickOrderBar.tsx     # Bottom: fast order entry with TP/SL + hotkeys
 │   │       ├── TradeConfirmModal.tsx # Trade confirmation dialog (lot-size presets)
+│   │       ├── UnlockKeyModal.tsx    # Session unlock: passphrase → decrypt vault
 │   │       └── PortfolioSummaryBar.tsx
 │   │
 │   ├── hooks/
@@ -212,11 +219,15 @@ WS subscribe { source: "book", symbol, agg_level: 100 }
 │   │   ├── pacifica-client.ts  # Pacifica REST API client (lot-size snapping, retry)
 │   │   ├── pacifica-ws.ts      # Shared singleton WebSocket (reconnect + ping)
 │   │   ├── elfa-client.ts      # Elfa AI API client
-│   │   ├── signing.ts          # Agent key import, keypair signing
+│   │   ├── signing.ts          # Agent key import, keypair signing (no storage)
+│   │   ├── keyVault.ts         # Web Crypto AES-GCM encrypt/decrypt + PBKDF2
+│   │   ├── env.ts              # Zod env schema — validates vars at server startup
 │   │   ├── privy.ts            # Privy config
 │   │   └── utils.ts            # formatUSD, formatPct, cn, truncateAddress
 │   │
 │   ├── stores/
+│   │   ├── agentKeyStore.ts      # Zustand: in-memory keypair (no localStorage)
+│   │   ├── toastStore.ts         # Zustand: global error/success toasts
 │   │   └── trailingStopStore.ts  # Zustand: per-position trailing stop state
 │   │
 │   └── types/
@@ -256,30 +267,33 @@ Create a `.env.local` file in the root:
 ```env
 # ─── Privy (Wallet Auth) ──────────────────────────────────────────────────────
 NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
-PRIVY_APP_SECRET=your_privy_app_secret
+PRIVY_APP_SECRET=your_privy_app_secret          # server-only
 
 # ─── Elfa AI (Social Signals) ────────────────────────────────────────────────
-ELFA_AI_API_KEY=your_elfa_api_key
+ELFA_AI_API_KEY=your_elfa_api_key               # server-only
 NEXT_PUBLIC_ELFA_AI_BASE_URL=https://api.elfa.ai/v1
 
 # ─── Pacifica DEX ────────────────────────────────────────────────────────────
 NEXT_PUBLIC_PACIFICA_WS_URL=wss://ws.pacifica.fi/ws
 NEXT_PUBLIC_PACIFICA_API_URL=https://api.pacifica.fi/api/v1
 
-# ─── Jupiter (Spot Prices for Arb Scanner) ───────────────────────────────────
+# ─── Jupiter (Spot Prices — API key optional) ────────────────────────────────
+JUPITER_API_KEY=                                # optional, server-only
 NEXT_PUBLIC_JUPITER_PRICE_API=https://price.jup.ag/v6/price
 
 # ─── Builder Code (do not change) ────────────────────────────────────────────
 NEXT_PUBLIC_BUILDER_CODE=POINTPULSE
 ```
 
-| Variable                   | Where to get it                                           |
-| -------------------------- | --------------------------------------------------------- |
-| `NEXT_PUBLIC_PRIVY_APP_ID` | [console.privy.io](https://console.privy.io) → Create App |
-| `PRIVY_APP_SECRET`         | Privy dashboard → API Keys                                |
-| `ELFA_AI_API_KEY`          | [elfa.ai](https://elfa.ai) → API Access                   |
-| Pacifica URLs              | Fixed — do not change                                     |
-| Jupiter URL                | Fixed — do not change                                     |
+| Variable                   | Required | Where to get it                                           |
+| -------------------------- | -------- | --------------------------------------------------------- |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Yes      | [console.privy.io](https://console.privy.io) → Create App |
+| `PRIVY_APP_SECRET`         | Yes      | Privy dashboard → API Keys (server-only)                  |
+| `ELFA_AI_API_KEY`          | Yes      | [elfa.ai](https://elfa.ai) → API Access (server-only)     |
+| `NEXT_PUBLIC_PACIFICA_*`   | Yes      | Fixed values — do not change                              |
+| `JUPITER_API_KEY`          | No       | [jup.ag](https://jup.ag) — higher rate limits if set      |
+
+> **Note:** `server-only` vars are used exclusively in Next.js API routes and never bundled into the client. The app validates all required vars at startup via Zod — it will refuse to start with a clear error message if any are missing.
 
 ### 3. Run Development Server
 
@@ -308,8 +322,9 @@ When you first load the terminal:
    - Go to [app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)
    - Create a new agent key
    - Copy the **private key** (base58 format)
-   - Paste it into the terminal modal
-   - The terminal stores it in `localStorage` — it persists across sessions so you only need to paste it once
+   - Paste it into the terminal modal and choose a **passphrase**
+   - The key is encrypted (AES-GCM) before being stored — the raw private key never touches `localStorage`
+   - On each new session (page refresh) you will be prompted for your passphrase to unlock the key into memory
 
 3. **Authorize Agent Key** — A yellow banner will appear asking you to sign once with your main wallet. This registers your agent key with Pacifica (one-time).
 
@@ -408,8 +423,8 @@ Signed requests include: `type`, `main_wallet`, `agent_wallet`, `timestamp`, `ex
 
 ## Key Design Decisions
 
-**Agent Keys over Wallet Popups**
-Every order goes through the agent keypair stored in `localStorage`. Users sign once to authorize the agent key, then trade without any wallet popups. The key persists across sessions — no need to re-paste on every visit. The agent key can only trade — it cannot withdraw funds.
+**Encrypted Agent Key Vault**
+Every order goes through the agent keypair. Users sign once to authorize the key, then trade without any wallet popups. The key is never stored in plaintext — it is encrypted with AES-256-GCM using a key derived from the user's passphrase (PBKDF2, 200k iterations). Only `{ciphertext, salt, iv}` are persisted to `localStorage`. The raw private key is held only in memory for the duration of the session and cleared on page refresh. On returning sessions, users unlock with their passphrase. The agent key can only trade — it cannot withdraw funds.
 
 **Builder Code (POINTPULSE)**
 Every market order includes `builder_code: "POINTPULSE"`. This enrolls users in Pacifica's builder rewards program. Approval is a one-time wallet signature.
@@ -440,10 +455,23 @@ npm run type-check   # TypeScript check (no emit)
 
 ---
 
+## Security
+
+| Feature | Implementation |
+| ------- | -------------- |
+| Agent key at rest | AES-256-GCM encrypted, PBKDF2-derived key (200k iterations). Only `{ciphertext, salt, iv}` in `localStorage`. |
+| Agent key in memory | Raw private key held only in Zustand state — cleared on page refresh or "Forget device". |
+| HTTP security headers | `Content-Security-Policy-Report-Only`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` applied to all routes via `next.config.ts`. |
+| Server secret protection | Elfa AI and Jupiter API keys only used in server-side API routes (`/api/elfa`, `/api/jupiter`) — never exposed to the client bundle. |
+| Env validation | All required environment variables are validated at server startup with Zod. The app fails closed (clear error message) rather than silently misbehaving on bad config. |
+| Jupiter API key | Optional — the Jupiter Price API works without a key (rate-limited). Only included in requests when `JUPITER_API_KEY` is set. |
+
+---
+
 ## Environment Notes
 
 - The app uses `export const dynamic = "force-dynamic"` on the page — this prevents static pre-rendering which would break Privy initialization.
-- Agent keys are stored in `localStorage` — they persist across tab closes and browser restarts so users don't need to re-paste their key each session.
+- Agent keys are encrypted with AES-GCM before storage. On each new session, the unlock modal prompts for the passphrase — no need to re-paste the raw key.
 - WebSocket reconnects with exponential backoff (2s → 30s max). Social signals and orderbook data continue working independently — if one subscription drops, it is re-sent on reconnect.
 - All monetary values are in USD. Pacifica uses USDC as collateral.
 - The `reduce_only` field is always included in signed payloads (as `true` or `false`) — the Pacifica API requires this field to be present for signature verification.
