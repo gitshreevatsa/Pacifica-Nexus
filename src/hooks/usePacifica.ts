@@ -28,6 +28,7 @@ import { useTradeLogStore } from "@/stores/tradeLogStore";
 import { toast } from "@/stores/toastStore";
 import { useKillSwitchStore, assertTradingAllowed } from "@/stores/killSwitchStore";
 import { useOrderLifecycleStore } from "@/stores/orderLifecycleStore";
+import { trackOrderFailed, trackOrderPlaced } from "@/lib/telemetry";
 
 // ─── Query retry helpers ──────────────────────────────────────────────────────
 
@@ -303,14 +304,24 @@ export function usePacifica(): UsePacificaReturn {
   const openMutation = useMutation({
     mutationFn: async (p: OpenPositionParams) => {
       assertTradingAllowed();
-      // Resolve lot size from market data so amounts are snapped correctly
-      const market   = markets.find((m) => m.symbol === p.symbol);
-      const lotSize  = market?.lotSize ?? 0.01;
+      const market        = markets.find((m) => m.symbol === p.symbol);
+      const lotSize       = market?.lotSize ?? 0.01;
+      const clientOrderId = crypto.randomUUID();
 
-      // Main order — market or limit
-      const result = p.orderType === "limit"
-        ? await client.createLimitOrder({ symbol: p.symbol, side: p.side, size: p.size, price: p.price, lotSize })
-        : await client.createMarketOrder({ symbol: p.symbol, side: p.side, size: p.size, slippage: p.slippage, lotSize });
+      useOrderLifecycleStore.getState().markSubmitting(clientOrderId, p.symbol, p.side, p.size);
+
+      let result: { order_id: number };
+      try {
+        result = p.orderType === "limit"
+          ? await client.createLimitOrder({ symbol: p.symbol, side: p.side, size: p.size, price: p.price, lotSize, clientOrderId })
+          : await client.createMarketOrder({ symbol: p.symbol, side: p.side, size: p.size, slippage: p.slippage, lotSize, clientOrderId });
+        useOrderLifecycleStore.getState().markAccepted(clientOrderId, result.order_id);
+        trackOrderPlaced({ symbol: p.symbol, side: p.side, orderId: result.order_id });
+      } catch (e) {
+        useOrderLifecycleStore.getState().markRejected(clientOrderId, String(e));
+        trackOrderFailed({ symbol: p.symbol, side: p.side, orderType: p.orderType ?? "market", error: e });
+        throw e;
+      }
 
       // Bracket orders: TP and SL as reduce-only limit orders on the opposite side
       const oppSide = p.side === "LONG" ? "SHORT" : "LONG";

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff, Lock, AlertCircle, Trash2 } from "lucide-react";
 import { loadVault, decryptKey, deleteVault } from "@/lib/keyVault";
 import { importAgentKey, type AgentKeypair } from "@/lib/signing";
+import { trackUnlockFailed } from "@/lib/telemetry";
 
 interface UnlockKeyModalProps {
   onUnlock: (kp: AgentKeypair) => void;
@@ -20,11 +21,12 @@ interface UnlockKeyModalProps {
  * covering: forgot passphrase, new account, new API key.
  */
 export default function UnlockKeyModal({ onUnlock, onReplaceKey }: UnlockKeyModalProps) {
-  const [passphrase,   setPassphrase]   = useState("");
-  const [showPass,     setShowPass]     = useState(false);
-  const [error,        setError]        = useState("");
-  const [loading,      setLoading]      = useState(false);
-  const [confirmWipe,  setConfirmWipe]  = useState(false);
+  const [passphrase,    setPassphrase]   = useState("");
+  const [showPass,      setShowPass]     = useState(false);
+  const [error,         setError]        = useState("");
+  const [loading,       setLoading]      = useState(false);
+  const [confirmWipe,   setConfirmWipe]  = useState(false);
+  const [failCount,     setFailCount]    = useState(0);
 
   const handleUnlock = async () => {
     if (!passphrase) { setError("Enter your passphrase."); return; }
@@ -38,6 +40,9 @@ export default function UnlockKeyModal({ onUnlock, onReplaceKey }: UnlockKeyModa
       const kp = importAgentKey(privKeyB58);
       onUnlock(kp);
     } catch (e) {
+      const next = failCount + 1;
+      setFailCount(next);
+      trackUnlockFailed(next);
       setError(e instanceof Error ? e.message : "Wrong passphrase — try again.");
     } finally {
       setLoading(false);

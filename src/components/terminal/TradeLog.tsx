@@ -3,6 +3,7 @@
 import { ClipboardList, Trash2, TrendingUp, TrendingDown, ArrowDownLeft } from "lucide-react";
 import { useTradeLogStore, type TradeLogEntry } from "@/stores/tradeLogStore";
 import { cn, formatUSD, formatTime } from "@/lib/utils";
+import { OrderStatusBadge } from "@/components/terminal/OrderStatusBadge";
 
 function EntryRow({ entry }: { entry: TradeLogEntry }) {
   const isLong = entry.side === "LONG";
@@ -32,6 +33,7 @@ function EntryRow({ entry }: { entry: TradeLogEntry }) {
             style={{ background: "rgba(255,255,255,0.05)" }}>
             {entry.type}
           </span>
+          <OrderStatusBadge orderId={entry.orderId} />
           <span className={cn(
             "text-[9px] font-mono px-1 py-0.5 rounded",
             isLong ? "text-neon-green bg-neon-green/10" : "text-danger bg-danger/10"

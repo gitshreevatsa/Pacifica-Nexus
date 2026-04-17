@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
 import { useWsStatus } from "@/hooks/useWsStatus";
+import { useOrderLifecycleSync } from "@/hooks/useOrderLifecycleSync";
 import { useFundingAlertStore } from "@/stores/fundingAlertStore";
 import { useFundingAlerts } from "@/hooks/useFundingAlerts";
 import { truncateAddress, formatUSD, cn } from "@/lib/utils";
@@ -414,6 +415,9 @@ export default function SessionBar() {
   } = usePacifica();
 
   const { connected: wsConnected, stale: wsStale } = useWsStatus();
+
+  // Reconcile order lifecycle states against WS fill/cancel events
+  useOrderLifecycleSync(walletAddress);
 
   const { alerts } = useFundingAlertStore();
   const firedAlerts = useFundingAlerts(markets);

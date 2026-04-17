@@ -34,6 +34,8 @@ const clientSchema = z.object({
     .string()
     .url("NEXT_PUBLIC_JUPITER_PRICE_API must be a valid URL")
     .default("https://price.jup.ag/v6/price"),
+  // Optional — Sentry is silent when DSN is not set
+  NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional().or(z.literal("")),
 });
 
 function validateEnv() {

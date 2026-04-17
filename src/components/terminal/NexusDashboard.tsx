@@ -14,6 +14,7 @@ import SessionBar from "@/components/terminal/SessionBar";
 import QuickOrderBar from "@/components/terminal/QuickOrderBar";
 import PortfolioSummaryBar from "@/components/terminal/PortfolioSummaryBar";
 import { KillSwitchBanner } from "@/components/terminal/KillSwitchBanner";
+import { StaleFeedBanner } from "@/components/terminal/StaleFeedBanner";
 import { useToastStore } from "@/stores/toastStore";
 
 const AlphaFeed    = dynamic(() => import("@/components/terminal/AlphaFeed"),    { ssr: false, loading: () => <PanelSkeleton rows={6} /> });
@@ -189,6 +190,7 @@ export default function NexusDashboard() {
     <div className="flex flex-col h-screen" style={{ background: "#050505" }}>
       <SessionBar />
       <KillSwitchBanner />
+      <StaleFeedBanner />
 
       <main className="flex-1 grid grid-cols-[380px_1fr_340px] gap-2.5 p-2.5 overflow-hidden min-h-0">
         {/* Left — Alpha Feed */}
