@@ -14,6 +14,11 @@
  */
 
 import { buildSignedBody, compact, type AgentKeypair } from "@/lib/signing";
+import {
+  snapAmount,
+  parseLotSizeError,
+  computeLiqPrice,
+} from "@/lib/trading-math";
 import bs58 from "bs58";
 import type {
   MarketInfo,
@@ -91,6 +96,9 @@ async function post<T>(path: string, body: Record<string, unknown>): Promise<T> 
   });
 }
 
+// Re-export for consumers that already import from this module
+export { snapAmount, computeLiqPrice } from "@/lib/trading-math";
+
 // ─── Data normalizers ─────────────────────────────────────────────────────────
 
 function mergeMarket(info: MarketInfo, price: MarketPrice): Market {
@@ -112,19 +120,6 @@ function mergeMarket(info: MarketInfo, price: MarketPrice): Market {
     minOrderSize:    parseFloat(info.min_order_size),
     lotSize:         parseFloat(info.lot_size) || 0.01,
   };
-}
-
-/** Liquidation price — simplified cross-margin estimate. */
-function computeLiqPrice(
-  side: Direction,
-  entryPrice: number,
-  leverage: number,
-  mmr = 0.005
-): number {
-  if (leverage <= 0) return 0;
-  return side === "LONG"
-    ? entryPrice * (1 - 1 / leverage + mmr)
-    : entryPrice * (1 + 1 / leverage - mmr);
 }
 
 export function normalizePosition(
@@ -182,29 +177,6 @@ export interface OrderParams {
   reduceOnly?: boolean;
   slippage?:   string;
   lotSize?:    number;   // snap size to this before sending
-}
-
-/**
- * Snap a size to the nearest lot-size multiple, formatted as a string.
- * Throws if the result is zero (input smaller than half a lot).
- */
-function snapAmount(size: number, lotSize: number): string {
-  const snapped = Math.round(size / lotSize) * lotSize;
-  if (snapped <= 0) {
-    throw new Error(`Size ${size} is below minimum lot size ${lotSize}. Enter at least ${lotSize} units.`);
-  }
-  const decimals = lotSize >= 1 ? 0 : Math.max(0, -Math.floor(Math.log10(lotSize)));
-  return snapped.toFixed(Math.min(decimals, 8));
-}
-
-/**
- * Extract lot size from a Pacifica "not a multiple of lot size X" error message.
- * Returns null if the error isn't a lot-size rejection.
- */
-function parseLotSizeError(err: unknown): number | null {
-  const msg = err instanceof Error ? err.message : String(err);
-  const match = msg.match(/lot size (\d+\.?\d*)/i);
-  return match ? parseFloat(match[1]) : null;
 }
 
 /**
