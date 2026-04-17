@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (!ELFA_API_KEY) {
     return NextResponse.json(
       { error: "ELFA_AI_API_KEY not configured on server" },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
@@ -38,23 +38,28 @@ export async function GET(req: NextRequest) {
         "x-elfa-api-key": ELFA_API_KEY,
         "Content-Type": "application/json",
       },
-      next: { revalidate: 10 },
+      // Cache at the Next.js Data Cache layer for 5 minutes
+      next: { revalidate: 300 },
     });
 
     if (!res.ok) {
       const text = await res.text();
       return NextResponse.json(
         { error: `Elfa upstream error ${res.status}`, detail: text },
-        { status: res.status }
+        { status: res.status },
       );
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+      },
+    });
   } catch (err) {
     return NextResponse.json(
       { error: "Failed to reach Elfa AI", detail: String(err) },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

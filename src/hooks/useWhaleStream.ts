@@ -14,7 +14,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getTrendingTokens } from "@/lib/elfa-client";
-import { ensureConnected, onMessage, onConnect, wsSend } from "@/lib/pacifica-ws";
+import {
+  ensureConnected,
+  onMessage,
+  onConnect,
+  wsSend,
+} from "@/lib/pacifica-ws";
 import type {
   AlphaSocialSignal,
   WhaleEvent,
@@ -26,10 +31,10 @@ import type {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WHALE_THRESHOLD_USD = 10_000;
-const SOCIAL_TTL_MS       = 10 * 60 * 1000;
-const SOCIAL_REFRESH_MS   = 60 * 1000;
-const MAX_VERIFIED        = 20;
-const MAX_WHALE_EVENTS    = 100;
+const SOCIAL_TTL_MS = 10 * 60 * 1000;
+const SOCIAL_REFRESH_MS = 5 * 60 * 1000;
+const MAX_VERIFIED = 20;
+const MAX_WHALE_EVENTS = 100;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,13 +55,13 @@ function normaliseSocialSignal(t: {
   sentiment: WhaleSentiment;
 }): AlphaSocialSignal {
   return {
-    symbol:         t.symbol,
-    mentionCount:   t.mentionCount,
-    changePercent:  t.changePercent,
-    sentiment:      t.sentiment,
+    symbol: t.symbol,
+    mentionCount: t.mentionCount,
+    changePercent: t.changePercent,
+    sentiment: t.sentiment,
     sentimentScore: toSentimentScore(t.changePercent),
-    volumeScore:    toVolumeScore(t.mentionCount),
-    fetchedAt:      Date.now(),
+    volumeScore: toVolumeScore(t.mentionCount),
+    fetchedAt: Date.now(),
   };
 }
 
@@ -64,11 +69,14 @@ function normaliseSocialSignal(t: {
 function socialDirection(s: AlphaSocialSignal): Direction | null {
   if (s.sentiment === "BULLISH") return "LONG";
   if (s.sentiment === "BEARISH") return "SHORT";
-  return null;   // NEUTRAL — skip matching
+  return null; // NEUTRAL — skip matching
 }
 
 /** Composite confidence: average of sentiment + volume + agreement bonus */
-function computeConfidence(social: AlphaSocialSignal, _whale: WhaleEvent): number {
+function computeConfidence(
+  social: AlphaSocialSignal,
+  _whale: WhaleEvent,
+): number {
   const base = Math.round((social.sentimentScore + social.volumeScore) / 2);
   // agreement bonus: whale direction matches sentiment → +10
   return Math.min(100, base + 10);
@@ -81,11 +89,11 @@ function computeConfidence(social: AlphaSocialSignal, _whale: WhaleEvent): numbe
  * We attempt two channel names ("trades" and "fills") and accept either.
  */
 interface WsRawTrade {
-  s?: string;   // symbol
-  d?: string;   // side: "bid" | "ask"
-  p?: string;   // price
-  a?: string;   // amount / size
-  t?: number;   // timestamp ms
+  s?: string; // symbol
+  d?: string; // side: "bid" | "ask"
+  p?: string; // price
+  a?: string; // amount / size
+  t?: number; // timestamp ms
   // alternate field names seen on some perp DEXes
   symbol?: string;
   side?: string;
@@ -105,21 +113,23 @@ interface WsMessage {
 function parseWsTradeEvent(msg: WsMessage): WhaleEvent | null {
   const isTradeChannel =
     msg.channel === "trades" ||
-    msg.channel === "fills"  ||
+    msg.channel === "fills" ||
     msg.channel === "all_trades" ||
-    msg.type   === "trade";
+    msg.type === "trade";
 
   if (!isTradeChannel || !msg.data) return null;
 
-  const items: WsRawTrade[] = Array.isArray(msg.data) ? msg.data : [msg.data as WsRawTrade];
+  const items: WsRawTrade[] = Array.isArray(msg.data)
+    ? msg.data
+    : [msg.data as WsRawTrade];
 
   // Return the first item that passes the whale threshold
   for (const raw of items) {
     const symbol = raw.symbol ?? raw.s;
     if (!symbol) continue;
 
-    const price  = parseFloat(raw.price ?? raw.p ?? "0");
-    const size   = parseFloat(raw.size  ?? raw.qty ?? raw.a ?? "0");
+    const price = parseFloat(raw.price ?? raw.p ?? "0");
+    const size = parseFloat(raw.size ?? raw.qty ?? raw.a ?? "0");
     if (!price || !size) continue;
 
     const notional = price * size;
@@ -132,8 +142,8 @@ function parseWsTradeEvent(msg: WsMessage): WhaleEvent | null {
         : "SHORT";
 
     return {
-      id:        `whale-${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      symbol:    symbol.replace(/-PERP$/i, "").toUpperCase(),
+      id: `whale-${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      symbol: symbol.replace(/-PERP$/i, "").toUpperCase(),
       side,
       size,
       price,
@@ -163,17 +173,17 @@ export interface UseWhaleStreamReturn {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useWhaleStream(): UseWhaleStreamReturn {
-  const [socialSignals,  setSocialSignals]  = useState<AlphaSocialSignal[]>([]);
-  const [whaleEvents,    setWhaleEvents]    = useState<WhaleEvent[]>([]);
+  const [socialSignals, setSocialSignals] = useState<AlphaSocialSignal[]>([]);
+  const [whaleEvents, setWhaleEvents] = useState<WhaleEvent[]>([]);
   const [verifiedAlphas, setVerifiedAlphas] = useState<VerifiedAlpha[]>([]);
-  const [isWsConnected,  setIsWsConnected]  = useState(false);
+  const [isWsConnected, setIsWsConnected] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState(true);
-  const [socialError,    setSocialError]    = useState<Error | null>(null);
+  const [socialError, setSocialError] = useState<Error | null>(null);
   const [socialRefreshTick, setSocialRefreshTick] = useState(0);
 
   // Refs so callbacks always see latest state without stale closures
-  const socialRef   = useRef<AlphaSocialSignal[]>([]);
-  const whaleRef    = useRef<WhaleEvent[]>([]);
+  const socialRef = useRef<AlphaSocialSignal[]>([]);
+  const whaleRef = useRef<WhaleEvent[]>([]);
   const verifiedRef = useRef<VerifiedAlpha[]>([]);
 
   // ── Social data ───────────────────────────────────────────────────────────
@@ -201,7 +211,9 @@ export function useWhaleStream(): UseWhaleStreamReturn {
         setIsSocialLoading(false);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [socialRefreshTick]);
 
   // Auto-refresh social every minute
@@ -215,7 +227,7 @@ export function useWhaleStream(): UseWhaleStreamReturn {
     const id = setInterval(() => {
       const now = Date.now();
       const fresh = socialRef.current.filter(
-        (s) => now - s.fetchedAt < SOCIAL_TTL_MS
+        (s) => now - s.fetchedAt < SOCIAL_TTL_MS,
       );
       if (fresh.length !== socialRef.current.length) {
         socialRef.current = fresh;
@@ -228,13 +240,11 @@ export function useWhaleStream(): UseWhaleStreamReturn {
   // ── Matcher ───────────────────────────────────────────────────────────────
 
   const tryMatch = useCallback((event: WhaleEvent) => {
-    const social = socialRef.current.find(
-      (s) => s.symbol === event.symbol
-    );
+    const social = socialRef.current.find((s) => s.symbol === event.symbol);
     if (!social) return;
 
     const dir = socialDirection(social);
-    if (!dir || dir !== event.side) return;   // must agree on direction
+    if (!dir || dir !== event.side) return; // must agree on direction
 
     const existing = verifiedRef.current.find((v) => v.symbol === event.symbol);
     // Deduplicate: if we already have one for this symbol, only update if newer confidence
@@ -242,13 +252,13 @@ export function useWhaleStream(): UseWhaleStreamReturn {
     if (existing && existing.confidence >= confidence) return;
 
     const verified: VerifiedAlpha = {
-      id:          `va-${event.symbol}-${Date.now()}`,
-      symbol:      event.symbol,
+      id: `va-${event.symbol}-${Date.now()}`,
+      symbol: event.symbol,
       social,
-      whale:       event,
-      direction:   dir,
+      whale: event,
+      direction: dir,
       confidence,
-      verifiedAt:  Date.now(),
+      verifiedAt: Date.now(),
     };
 
     verifiedRef.current = [
@@ -266,7 +276,7 @@ export function useWhaleStream(): UseWhaleStreamReturn {
 
     const sendTradeSubs = () => {
       ["trades", "fills", "all_trades"].forEach((ch) =>
-        wsSend({ method: "subscribe", params: { channel: ch } })
+        wsSend({ method: "subscribe", params: { channel: ch } }),
       );
     };
 
@@ -284,7 +294,10 @@ export function useWhaleStream(): UseWhaleStreamReturn {
       const event = parseWsTradeEvent(msg);
       if (!event) return;
 
-      whaleRef.current = [event, ...whaleRef.current].slice(0, MAX_WHALE_EVENTS);
+      whaleRef.current = [event, ...whaleRef.current].slice(
+        0,
+        MAX_WHALE_EVENTS,
+      );
       setWhaleEvents([...whaleRef.current]);
       tryMatch(event);
     });
