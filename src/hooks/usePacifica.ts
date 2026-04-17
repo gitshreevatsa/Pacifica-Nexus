@@ -27,6 +27,32 @@ import type { Position, PacificaOrder, AccountHealth, Market, Direction } from "
 import { useTradeLogStore } from "@/stores/tradeLogStore";
 import { toast } from "@/stores/toastStore";
 
+// ─── Query retry helpers ──────────────────────────────────────────────────────
+
+/**
+ * Returns true if the error is a 4xx client error (auth failure, bad request, etc.)
+ * that won't benefit from retrying.
+ */
+function isClientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // apiFetch throws:  "[401] Unauthorized"
+  // get()    throws:  "[Pacifica 401] ..."
+  const match = msg.match(/\[(?:Pacifica )?(\d{3})\]/);
+  if (match) {
+    const status = parseInt(match[1], 10);
+    return status >= 400 && status < 500;
+  }
+  return false;
+}
+
+/** Retry up to 3 times, but never for 4xx errors. */
+const queryRetry = (failureCount: number, err: unknown) =>
+  failureCount < 3 && !isClientError(err);
+
+/** Exponential backoff: 1 s, 2 s, 4 s … capped at 30 s. */
+const queryRetryDelay = (attempt: number) =>
+  Math.min(1_000 * 2 ** attempt, 30_000);
+
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export const QK = {
@@ -134,8 +160,11 @@ export function usePacifica(): UsePacificaReturn {
   const { data: markets = [], isLoading: isMarketsLoading } = useQuery<Market[]>({
     queryKey: QK.markets,
     queryFn:  () => client.getMarkets(),
-    refetchInterval: 3_000,
-    staleTime:       2_000,
+    refetchInterval:           3_000,
+    refetchIntervalInBackground: false,
+    staleTime:                 2_000,
+    retry:                     queryRetry,
+    retryDelay:                queryRetryDelay,
     enabled:  true,
   });
 
@@ -148,8 +177,11 @@ export function usePacifica(): UsePacificaReturn {
   const { data: positions = [] } = useQuery<Position[]>({
     queryKey: QK.positions(walletAddress ?? ""),
     queryFn:  () => client.getPositions(markPrices),
-    refetchInterval: 3_000,
-    staleTime:       2_000,
+    refetchInterval:           3_000,
+    refetchIntervalInBackground: false,
+    staleTime:                 2_000,
+    retry:                     queryRetry,
+    retryDelay:                queryRetryDelay,
     enabled:  !!walletAddress,
   });
 
@@ -157,8 +189,11 @@ export function usePacifica(): UsePacificaReturn {
   const { data: openOrders = [] } = useQuery<PacificaOrder[]>({
     queryKey: QK.orders(walletAddress ?? ""),
     queryFn:  () => client.getOpenOrders(),
-    refetchInterval: 3_000,
-    staleTime:       2_000,
+    refetchInterval:           3_000,
+    refetchIntervalInBackground: false,
+    staleTime:                 2_000,
+    retry:                     queryRetry,
+    retryDelay:                queryRetryDelay,
     enabled:  !!walletAddress,
   });
 
@@ -166,8 +201,11 @@ export function usePacifica(): UsePacificaReturn {
   const { data: accountHealth, isLoading: isHealthLoading } = useQuery<AccountHealth>({
     queryKey: QK.health(walletAddress ?? ""),
     queryFn:  () => client.getAccount(),
-    refetchInterval: 5_000,
-    staleTime:       3_000,
+    refetchInterval:           5_000,
+    refetchIntervalInBackground: false,
+    staleTime:                 3_000,
+    retry:                     queryRetry,
+    retryDelay:                queryRetryDelay,
     enabled:  !!walletAddress,
   });
 
@@ -177,8 +215,9 @@ export function usePacifica(): UsePacificaReturn {
   const { data: agentKeyRegistered = false, isLoading: isCheckingAgentKey } = useQuery<boolean>({
     queryKey: ["pacifica", "agentKeyRegistered", walletAddress ?? "", agentPublicKey ?? ""],
     queryFn:  () => Promise.resolve(client.isAgentKeyRegistered()),
-    staleTime:       Infinity,   // sessionStorage doesn't change unless we write it
-    enabled:  !!walletAddress && !!agentPublicKey,
+    staleTime: Infinity,   // sessionStorage doesn't change unless we write it
+    retry:     false,      // sync check, no point retrying
+    enabled:   !!walletAddress && !!agentPublicKey,
   });
 
   const registerAgentKeyMutation = useMutation({
@@ -206,8 +245,11 @@ export function usePacifica(): UsePacificaReturn {
   const { data: builderApproved = false, isLoading: isCheckingApproval } = useQuery<boolean>({
     queryKey: QK.builderApproved(walletAddress ?? ""),
     queryFn:  () => client.hasApprovedBuilderCode(),
-    staleTime:       60_000,  // re-check every minute
-    refetchInterval: 60_000,
+    staleTime:                 60_000,
+    refetchInterval:           60_000,
+    refetchIntervalInBackground: false,
+    retry:                     queryRetry,
+    retryDelay:                queryRetryDelay,
     enabled:  !!walletAddress,
   });
 

@@ -26,6 +26,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
+import { useWsStatus } from "@/hooks/useWsStatus";
 import { useFundingAlertStore } from "@/stores/fundingAlertStore";
 import { useFundingAlerts } from "@/hooks/useFundingAlerts";
 import { truncateAddress, formatUSD, cn } from "@/lib/utils";
@@ -412,6 +413,8 @@ export default function SessionBar() {
     isApprovingBuilderCode,
   } = usePacifica();
 
+  const { connected: wsConnected, stale: wsStale } = useWsStatus();
+
   const { alerts } = useFundingAlertStore();
   const firedAlerts = useFundingAlerts(markets);
 
@@ -438,6 +441,13 @@ export default function SessionBar() {
     [importKey]
   );
 
+  // Vault was wiped from the unlock modal (forgot passphrase / replace key).
+  // Dismiss the unlock modal and open the import modal so the user can re-import.
+  const handleReplaceKey = useCallback(() => {
+    setShowUnlockModal(false);
+    setShowModal(true);
+  }, []);
+
   const activeAlertCount  = alerts.length;
   const firedCount        = alerts.filter((a) => a.triggered).length;
   const hasNewFired       = firedAlerts.length > 0;
@@ -453,6 +463,16 @@ export default function SessionBar() {
           <div>
             <h1 className="text-sm font-bold text-white tracking-tight">Pacifica Nexus</h1>
           </div>
+          {/* WS connection indicator */}
+          <div
+            className={cn(
+              "w-1.5 h-1.5 rounded-full transition-colors",
+              wsConnected && !wsStale ? "bg-neon-green shadow-[0_0_4px_theme(colors.neon-green)]"
+                : wsStale            ? "bg-warning"
+                : "bg-danger"
+            )}
+            title={wsConnected ? (wsStale ? "Feed stale — no data in 60s" : "Live feed connected") : "Feed disconnected"}
+          />
         </div>
 
         {/* Center: account health */}
@@ -612,7 +632,7 @@ export default function SessionBar() {
       )}
 
       {showUnlockModal && (
-        <UnlockKeyModal onUnlock={handleUnlock} />
+        <UnlockKeyModal onUnlock={handleUnlock} onReplaceKey={handleReplaceKey} />
       )}
     </>
   );
