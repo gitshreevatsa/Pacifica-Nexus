@@ -9,7 +9,10 @@ import { useToast } from "@/hooks/useToast";
 import TradeConfirmModal from "@/components/terminal/TradeConfirmModal";
 
 export default function QuickOrderBar() {
-  const { markets, markPrices, openPosition, keyStored, walletAddress, accountHealth } = usePacifica();
+  const {
+    markets, markPrices, openPosition, keyStored, walletAddress, accountHealth,
+    isOpenPending, tradingHalted,
+  } = usePacifica();
 
   const [symbol, setSymbol]           = useState<string>("");
   const [side, setSide]               = useState<Direction>("LONG");
@@ -22,7 +25,6 @@ export default function QuickOrderBar() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showConfirm, setShowConfirm]   = useState(false);
   const [toastMsg, showToast]           = useToast();
-  const [trading, setTrading]           = useState(false);
 
   const activeSymbol = symbol || markets[0]?.symbol || "";
   const activeMarket = markets.find((m) => m.symbol === activeSymbol);
@@ -61,7 +63,6 @@ export default function QuickOrderBar() {
 
   const handleConfirm = useCallback(async (units: number) => {
     setShowConfirm(false);
-    setTrading(true);
     try {
       const tp = parseFloat(tpPrice) || undefined;
       const sl = parseFloat(slPrice) || undefined;
@@ -71,8 +72,6 @@ export default function QuickOrderBar() {
       showToast(`${side} ${activeSymbol} opened ✓${extras ? ` · ${extras}` : ""}`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Order failed");
-    } finally {
-      setTrading(false);
     }
   }, [openPosition, activeSymbol, side, orderType, limitPrice, tpPrice, slPrice, showToast]);
 
@@ -226,20 +225,24 @@ export default function QuickOrderBar() {
             </span>
           )}
 
-          {/* Fire button */}
+          {/* Fire button — disabled while a submission is in-flight or trading is halted */}
           <button
             onClick={handleFire}
-            disabled={trading || markets.length === 0}
+            disabled={isOpenPending || tradingHalted || markets.length === 0}
             className={cn(
               "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold transition-all shrink-0",
               side === "LONG"
                 ? "bg-neon-green/15 hover:bg-neon-green/25 text-neon-green border border-neon-green/30"
                 : "bg-danger/15 hover:bg-danger/25 text-danger border border-danger/30",
-              (trading || markets.length === 0) && "opacity-40 cursor-not-allowed"
+              (isOpenPending || tradingHalted || markets.length === 0) && "opacity-40 cursor-not-allowed"
             )}
           >
             <Zap className="w-3 h-3" />
-            {trading ? "Placing…" : `${side === "LONG" ? "Long" : "Short"} ${activeSymbol.replace("-PERP", "")}`}
+            {isOpenPending
+              ? "Placing…"
+              : tradingHalted
+              ? "Halted"
+              : `${side === "LONG" ? "Long" : "Short"} ${activeSymbol.replace("-PERP", "")}`}
           </button>
         </div>
 

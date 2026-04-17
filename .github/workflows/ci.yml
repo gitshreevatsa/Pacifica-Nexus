@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. Lint + type-check ─────────────────────────────────────────────────────
+  lint:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run type-check
+
+  # ── 2. Unit tests ────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-coverage
+          path: coverage/
+          retention-days: 7
+
+  # ── 3. Build ─────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests]
+    env:
+      # Env vars required by Zod validation at build time.
+      # Real secrets are NOT needed here — build-phase validation is skipped
+      # when NEXT_PHASE=phase-production-build (set by next build automatically).
+      # These stubs satisfy any client-side Zod checks that run at import time.
+      NEXT_PUBLIC_PRIVY_APP_ID: ci-stub
+      NEXT_PUBLIC_PACIFICA_API_URL: https://api.pacifica.fi/api/v1
+      NEXT_PUBLIC_PACIFICA_WS_URL: wss://ws.pacifica.fi/ws
+      NEXT_PUBLIC_SENTRY_DSN: ""
+      # Skip server-side env validation entirely in CI
+      CI_SKIP_ENV_VALIDATION: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build
+          path: .next/
+          retention-days: 1
+
+  # ── 4. E2E smoke tests ───────────────────────────────────────────────────────
+  e2e:
+    name: E2E smoke tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    env:
+      NEXT_PUBLIC_PRIVY_APP_ID: ci-stub
+      NEXT_PUBLIC_PACIFICA_API_URL: https://api.pacifica.fi/api/v1
+      NEXT_PUBLIC_PACIFICA_WS_URL: wss://ws.pacifica.fi/ws
+      NEXT_PUBLIC_SENTRY_DSN: ""
+      CI_SKIP_ENV_VALIDATION: "true"
+      # Tell playwright.config.ts NOT to start the dev server — we start it below
+      START_SERVER: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nextjs-build
+          path: .next/
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start server in background
+        run: npm run start &
+        env:
+          PORT: 3000
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:3000 --timeout 30000
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

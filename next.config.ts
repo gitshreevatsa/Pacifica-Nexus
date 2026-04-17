@@ -3,11 +3,10 @@ import type { NextConfig } from "next";
 /**
  * Security headers applied to every route.
  *
- * CSP is currently in Report-Only mode (Content-Security-Policy-Report-Only).
- * Check browser console for violations, then switch to Content-Security-Policy
- * once you've confirmed no legitimate resources are being blocked.
+ * CSP is now enforced (Content-Security-Policy).
+ * It was previously in Report-Only mode and audited against real traffic.
  *
- * Domains to allow-list were identified from the architecture:
+ * Domains allow-listed from the architecture:
  *  - Privy: auth.privy.io, *.privy.io (iframes + scripts)
  *  - Pacifica WS: wss://ws.pacifica.fi
  *  - Pacifica REST: https://api.pacifica.fi (via server-side client)
@@ -35,9 +34,7 @@ const CSP = [
 
 const securityHeaders = [
   {
-    // Report-Only — won't block anything, but logs violations to console.
-    // Change to "Content-Security-Policy" after auditing with real traffic.
-    key: "Content-Security-Policy-Report-Only",
+    key: "Content-Security-Policy",
     value: CSP,
   },
   {

@@ -26,6 +26,8 @@ import { useAgentKeyStore } from "@/stores/agentKeyStore";
 import type { Position, PacificaOrder, AccountHealth, Market, Direction } from "@/types";
 import { useTradeLogStore } from "@/stores/tradeLogStore";
 import { toast } from "@/stores/toastStore";
+import { useKillSwitchStore, assertTradingAllowed } from "@/stores/killSwitchStore";
+import { useOrderLifecycleStore } from "@/stores/orderLifecycleStore";
 
 // ─── Query retry helpers ──────────────────────────────────────────────────────
 
@@ -106,6 +108,15 @@ export interface UsePacificaReturn {
   closePosition:  (p: ClosePositionParams) => Promise<{ order_id: number }>;
   deRisk25Pct:    (position: Position) => Promise<{ order_id: number }>;
   cancelOrder:    (symbol: string, orderId: number) => Promise<{ success: boolean }>;
+  isOpenPending:   boolean;
+  isClosePending:  boolean;
+  isCancelPending: boolean;
+
+  // Kill switches
+  tradingHalted: boolean;
+  haltReason:    string;
+  haltTrading:   (reason: string) => void;
+  resumeTrading: () => void;
 }
 
 export interface OpenPositionParams {
@@ -131,6 +142,12 @@ export interface ClosePositionParams {
 export function usePacifica(): UsePacificaReturn {
   const { authenticated } = usePrivy();
   const queryClient       = useQueryClient();
+
+  // ── Kill switches ──────────────────────────────────────────────────────────
+  const tradingHalted = useKillSwitchStore((s) => s.tradingHalted);
+  const haltReason    = useKillSwitchStore((s) => s.haltReason);
+  const haltTrading   = useKillSwitchStore((s) => s.haltTrading);
+  const resumeTrading = useKillSwitchStore((s) => s.resumeTrading);
   // Solana Wallet Adapter — MetaMask (native Solana), Phantom, Solflare, …
   const { publicKey: adapterPublicKey, signMessage: adapterSignMessage } = useWallet();
 
@@ -285,6 +302,7 @@ export function usePacifica(): UsePacificaReturn {
   // ── Trade mutations ────────────────────────────────────────────────────────
   const openMutation = useMutation({
     mutationFn: async (p: OpenPositionParams) => {
+      assertTradingAllowed();
       // Resolve lot size from market data so amounts are snapped correctly
       const market   = markets.find((m) => m.symbol === p.symbol);
       const lotSize  = market?.lotSize ?? 0.01;
@@ -328,8 +346,10 @@ export function usePacifica(): UsePacificaReturn {
   });
 
   const closeMutation = useMutation({
-    mutationFn: (p: ClosePositionParams) =>
-      client.closePosition(p.symbol, p.side, p.size ?? p.currentSize),
+    mutationFn: (p: ClosePositionParams) => {
+      assertTradingAllowed();
+      return client.closePosition(p.symbol, p.side, p.size ?? p.currentSize);
+    },
     onSuccess: (result, p) => {
       invalidateTrades();
       const price = markPrices[p.symbol] ?? 0;
@@ -351,8 +371,10 @@ export function usePacifica(): UsePacificaReturn {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: ({ symbol, orderId }: { symbol: string; orderId: number }) =>
-      client.cancelOrder(symbol, orderId),
+    mutationFn: ({ symbol, orderId }: { symbol: string; orderId: number }) => {
+      assertTradingAllowed();
+      return client.cancelOrder(symbol, orderId);
+    },
     onSuccess: invalidateTrades,
     onError: (err) => {
       toast.error(`Cancel failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -449,5 +471,13 @@ export function usePacifica(): UsePacificaReturn {
     closePosition,
     deRisk25Pct,
     cancelOrder,
+    isOpenPending:   openMutation.isPending,
+    isClosePending:  closeMutation.isPending,
+    isCancelPending: cancelMutation.isPending,
+    // Kill switches
+    tradingHalted,
+    haltReason,
+    haltTrading,
+    resumeTrading,
   };
 }

@@ -169,14 +169,15 @@ function normalizeHealth(raw: PacificaAccount): AccountHealth {
 // ─── PacificaClient ───────────────────────────────────────────────────────────
 
 export interface OrderParams {
-  symbol:      string;
-  side:        Direction;
-  size:        number;
-  price?:      number;
-  tif?:        TIF;
-  reduceOnly?: boolean;
-  slippage?:   string;
-  lotSize?:    number;   // snap size to this before sending
+  symbol:          string;
+  side:            Direction;
+  size:            number;
+  price?:          number;
+  tif?:            TIF;
+  reduceOnly?:     boolean;
+  slippage?:       string;
+  lotSize?:        number;   // snap size to this before sending
+  clientOrderId?:  string;   // idempotency key — generated if not provided
 }
 
 /**
@@ -434,6 +435,10 @@ export class PacificaClient {
   /** Market order — POST /orders/create_market */
   async createMarketOrder(params: OrderParams): Promise<{ order_id: number }> {
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
+    // Generate a stable idempotency key for this specific request so that a
+    // duplicate network call (e.g. double-click, retry storm) is a no-op on
+    // the server side.
+    const clientOrderId = params.clientOrderId ?? crypto.randomUUID();
     return retryWithLotSize((lotSize) => {
       const amount = snapAmount(params.size, lotSize);
       // reduce_only must always be present in the signed payload (required field).
@@ -444,6 +449,7 @@ export class PacificaClient {
         slippage_percent: params.slippage ?? DEFAULT_SLIPPAGE,
         reduce_only:      params.reduceOnly === true,
         builder_code:     BUILDER_CODE,
+        client_order_id:  clientOrderId,
       };
       return post<{ order_id: number }>("/orders/create_market", this.signed("create_market_order", data));
     }, params.lotSize ?? 0.01);
@@ -453,16 +459,18 @@ export class PacificaClient {
   async createLimitOrder(params: OrderParams): Promise<{ order_id: number }> {
     if (!params.price) throw new Error("Price required for limit orders");
     const side: PacificaSide = params.side === "LONG" ? "bid" : "ask";
+    const clientOrderId = params.clientOrderId ?? crypto.randomUUID();
     return retryWithLotSize((lotSize) => {
       const amount = snapAmount(params.size, lotSize);
       const data: Record<string, unknown> = {
-        symbol:       params.symbol,
-        price:        String(parseFloat(params.price!.toFixed(2))),
+        symbol:          params.symbol,
+        price:           String(parseFloat(params.price!.toFixed(2))),
         amount,
         side,
-        tif:          params.tif ?? "GTC",
-        reduce_only:  params.reduceOnly === true,
-        builder_code: BUILDER_CODE,
+        tif:             params.tif ?? "GTC",
+        reduce_only:     params.reduceOnly === true,
+        builder_code:    BUILDER_CODE,
+        client_order_id: clientOrderId,
       };
       return post<{ order_id: number }>("/orders/create", this.signed("create_order", data));
     }, params.lotSize ?? 0.01);

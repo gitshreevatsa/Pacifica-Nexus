@@ -1,0 +1,65 @@
+/**
+ * killSwitchStore.ts
+ *
+ * Runtime kill switches for emergency disabling of trading operations.
+ *
+ * Kill switches differ from feature flags:
+ *  - Feature flags are compile-time / deploy-time static values
+ *  - Kill switches can be toggled at runtime (e.g. user-triggered, or via
+ *    a future admin API response header)
+ *
+ * Current kill switches:
+ *  - tradingHalted   — disables all order placement (open / close / cancel)
+ *  - readOnlyMode    — same as tradingHalted but with clearer messaging
+ *
+ * Usage:
+ *   // In a component or hook:
+ *   const { tradingHalted, haltReason } = useKillSwitchStore();
+ *
+ *   // To trigger (e.g. from an emergency button or API error handler):
+ *   haltTrading("Circuit breaker: abnormal P&L detected");
+ *
+ *   // To resume:
+ *   resumeTrading();
+ */
+
+import { create } from "zustand";
+
+export interface KillSwitchState {
+  /** All order mutations are blocked when true. */
+  tradingHalted: boolean;
+
+  /** Human-readable reason shown in the UI. Empty string when not halted. */
+  haltReason: string;
+
+  /** When the halt was triggered (null when not halted). */
+  haltedAt: number | null;
+
+  // Actions
+  haltTrading:   (reason: string) => void;
+  resumeTrading: () => void;
+}
+
+export const useKillSwitchStore = create<KillSwitchState>((set) => ({
+  tradingHalted: false,
+  haltReason:    "",
+  haltedAt:      null,
+
+  haltTrading: (reason: string) =>
+    set({ tradingHalted: true, haltReason: reason, haltedAt: Date.now() }),
+
+  resumeTrading: () =>
+    set({ tradingHalted: false, haltReason: "", haltedAt: null }),
+}));
+
+/**
+ * Asserts that trading is currently allowed.
+ * Throws with the halt reason if a kill switch is active.
+ * Intended to be called at the top of every trade mutation.
+ */
+export function assertTradingAllowed(): void {
+  const { tradingHalted, haltReason } = useKillSwitchStore.getState();
+  if (tradingHalted) {
+    throw new Error(haltReason || "Trading is currently halted");
+  }
+}
