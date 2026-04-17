@@ -10,9 +10,9 @@
  *   <OrderStatusBadge orderId={entry.orderId} />
  */
 
-import { useOrderLifecycleStore, type OrderStatus } from "@/stores/orderLifecycleStore";
+import { useOrderLifecycleStore, type OrderLifecycleStatus } from "@/stores/orderLifecycleStore";
 
-const STATUS_STYLES: Record<OrderStatus, { label: string; color: string; bg: string }> = {
+const STATUS_STYLES: Record<OrderLifecycleStatus, { label: string; color: string; bg: string }> = {
   submitting: { label: "Sending…",  color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
   accepted:   { label: "Accepted",  color: "#60a5fa", bg: "rgba(96,165,250,0.1)"  },
   filled:     { label: "Filled ✓",  color: "#00ff87", bg: "rgba(0,255,135,0.1)"   },

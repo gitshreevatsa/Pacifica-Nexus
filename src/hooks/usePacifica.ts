@@ -318,7 +318,7 @@ export function usePacifica(): UsePacificaReturn {
         useOrderLifecycleStore.getState().markAccepted(clientOrderId, result.order_id);
         trackOrderPlaced({ symbol: p.symbol, side: p.side, orderId: result.order_id });
       } catch (e) {
-        useOrderLifecycleStore.getState().markRejected(clientOrderId, String(e));
+        useOrderLifecycleStore.getState().markRejected(clientOrderId);
         trackOrderFailed({ symbol: p.symbol, side: p.side, orderType: p.orderType ?? "market", error: e });
         throw e;
       }
@@ -328,12 +328,12 @@ export function usePacifica(): UsePacificaReturn {
       if (p.tpPrice && p.tpPrice > 0) {
         try {
           await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.tpPrice, reduceOnly: true, lotSize });
-        } catch (e) { console.warn("[Nexus] TP order failed:", e); }
+        } catch (e) { trackOrderFailed({ symbol: p.symbol, side: oppSide, orderType: "limit", error: e }); }
       }
       if (p.slPrice && p.slPrice > 0) {
         try {
           await client.createLimitOrder({ symbol: p.symbol, side: oppSide, size: p.size, price: p.slPrice, reduceOnly: true, lotSize });
-        } catch (e) { console.warn("[Nexus] SL order failed:", e); }
+        } catch (e) { trackOrderFailed({ symbol: p.symbol, side: oppSide, orderType: "limit", error: e }); }
       }
       return result;
     },

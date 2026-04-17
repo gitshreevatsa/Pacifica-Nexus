@@ -8,7 +8,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getWsState, getLastMessageTime, type WsState } from "@/lib/pacifica-ws";
+import { ensureConnected, getWsState, getLastMessageTime, type WsState } from "@/lib/pacifica-ws";
 
 /** A feed is considered stale if no WS message arrives within this window. */
 const STALE_THRESHOLD_MS = 60_000;
@@ -28,6 +28,8 @@ export function useWsStatus(): WsStatus {
   });
 
   useEffect(() => {
+    ensureConnected();
+
     const tick = () => {
       const state      = getWsState();
       const lastMsg    = getLastMessageTime();

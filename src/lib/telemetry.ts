@@ -2,12 +2,6 @@
  * telemetry.ts
  *
  * Thin wrappers around Sentry for structured, domain-specific instrumentation.
- *
- * Usage:
- *   import { trackOrderFailed, trackUnlockFailed, trackWsReconnect } from "@/lib/telemetry";
- *
- *   trackOrderFailed({ symbol: "SOL-PERP", side: "LONG", error: err });
- *
  * All functions are no-ops when Sentry is not initialised (no DSN set).
  */
 
@@ -62,26 +56,3 @@ export function trackUnlockFailed(attempt: number) {
   }
 }
 
-// ─── WebSocket events ─────────────────────────────────────────────────────────
-
-export function trackWsReconnect(attemptNumber: number) {
-  Sentry.addBreadcrumb({
-    category: "websocket",
-    message:  `WS reconnect attempt #${attemptNumber}`,
-    level:    attemptNumber > 5 ? "warning" : "info",
-  });
-  if (attemptNumber > 10) {
-    Sentry.captureMessage(`WS reconnect storm: ${attemptNumber} attempts`, "warning");
-  }
-}
-
-// ─── Kill switch events ───────────────────────────────────────────────────────
-
-export function trackTradingHalted(reason: string) {
-  Sentry.captureMessage(`Trading halted: ${reason}`, "error");
-  Sentry.addBreadcrumb({
-    category: "kill_switch",
-    message:  `Trading halted — ${reason}`,
-    level:    "error",
-  });
-}

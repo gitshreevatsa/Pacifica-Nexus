@@ -25,8 +25,8 @@ const CSP = [
   "img-src 'self' data: blob:",
   // Fonts: self
   "font-src 'self'",
-  // Connect: self + Pacifica WS + Privy API + Solana RPC
-  "connect-src 'self' wss://ws.pacifica.fi https://*.pacifica.fi https://*.privy.io https://auth.privy.io https://api.mainnet-beta.solana.com wss://api.mainnet-beta.solana.com https://*.helius-rpc.com wss://*.helius-rpc.com",
+  // Connect: self + Pacifica WS + Privy API + Solana RPC + WalletConnect explorer (wallet listings)
+  "connect-src 'self' wss://ws.pacifica.fi https://*.pacifica.fi https://*.privy.io https://auth.privy.io https://api.mainnet-beta.solana.com wss://api.mainnet-beta.solana.com https://*.helius-rpc.com wss://*.helius-rpc.com https://explorer-api.walletconnect.com",
   // Frames: Privy uses iframes for embedded wallets
   "frame-src 'self' https://*.privy.io https://auth.privy.io",
   // Workers: self (Next.js)

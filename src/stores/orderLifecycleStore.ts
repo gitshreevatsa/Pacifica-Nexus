@@ -28,7 +28,7 @@ import { create } from "zustand";
 
 const RETAIN_MS = 5 * 60 * 1_000; // keep entries for 5 minutes
 
-export type OrderStatus = "submitting" | "accepted" | "filled" | "cancelled" | "rejected";
+export type OrderLifecycleStatus = "submitting" | "accepted" | "filled" | "cancelled" | "rejected";
 
 export interface OrderLifecycleEntry {
   clientOrderId: string;
@@ -36,7 +36,7 @@ export interface OrderLifecycleEntry {
   symbol:        string;
   side:          "LONG" | "SHORT";
   size:          number;
-  status:        OrderStatus;
+  status:        OrderLifecycleStatus;
   updatedAt:     number;          // ms timestamp
 }
 
@@ -48,7 +48,7 @@ interface OrderLifecycleState {
   markAccepted:   (clientOrderId: string, orderId: number) => void;
   markFilled:     (orderId: number) => void;
   markCancelled:  (orderId: number) => void;
-  markRejected:   (clientOrderId: string, reason: string) => void;
+  markRejected:   (clientOrderId: string) => void;
   prune:          () => void;
 
   // Selectors
@@ -104,7 +104,7 @@ export const useOrderLifecycleStore = create<OrderLifecycleState>((set, get) => 
       };
     }),
 
-  markRejected: (clientOrderId, _reason) =>
+  markRejected: (clientOrderId) =>
     set((s) => {
       const existing = s.orders[clientOrderId];
       if (!existing) return s;

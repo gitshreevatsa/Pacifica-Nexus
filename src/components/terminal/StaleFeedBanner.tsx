@@ -31,11 +31,21 @@ function useSecondsSinceLastMessage(): number | null {
   return secs;
 }
 
+/** How long to wait after mount before showing the disconnected banner. */
+const STARTUP_GRACE_MS = 6_000;
+
 export function StaleFeedBanner() {
   const { connected, stale } = useWsStatus();
   const secsSince = useSecondsSinceLastMessage();
+  const [pastGrace, setPastGrace] = useState(false);
+
+  useEffect(() => {
+    const id = setTimeout(() => setPastGrace(true), STARTUP_GRACE_MS);
+    return () => clearTimeout(id);
+  }, []);
 
   if (connected && !stale) return null;
+  if (!connected && !pastGrace) return null;
 
   const isDisconnected = !connected;
   const label = isDisconnected
