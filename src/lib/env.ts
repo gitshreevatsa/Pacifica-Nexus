@@ -36,6 +36,10 @@ const clientSchema = z.object({
     .default("https://price.jup.ag/v6/price"),
   // Optional — Sentry is silent when DSN is not set
   NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional().or(z.literal("")),
+  // Optional — operator kill switch: set to "true" to disable all trading at boot
+  // without shipping a new build (change the env var in Vercel/Railway dashboard)
+  NEXT_PUBLIC_KILL_SWITCH: z.enum(["true", "false"]).optional(),
+  NEXT_PUBLIC_KILL_SWITCH_REASON: z.string().optional(),
 });
 
 function validateEnv() {

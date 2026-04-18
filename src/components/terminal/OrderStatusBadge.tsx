@@ -13,11 +13,15 @@
 import { useOrderLifecycleStore, type OrderLifecycleStatus } from "@/stores/orderLifecycleStore";
 
 const STATUS_STYLES: Record<OrderLifecycleStatus, { label: string; color: string; bg: string }> = {
-  submitting: { label: "Sending…",  color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
-  accepted:   { label: "Accepted",  color: "#60a5fa", bg: "rgba(96,165,250,0.1)"  },
-  filled:     { label: "Filled ✓",  color: "#00ff87", bg: "rgba(0,255,135,0.1)"   },
-  cancelled:  { label: "Cancelled", color: "#ff3b5c", bg: "rgba(255,59,92,0.1)"   },
-  rejected:   { label: "Rejected",  color: "#f97316", bg: "rgba(249,115,22,0.1)"  },
+  submitting:       { label: "Sending…",   color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
+  accepted:         { label: "Accepted",   color: "#60a5fa", bg: "rgba(96,165,250,0.1)"  },
+  partially_filled: { label: "Partial ↗",  color: "#fbbf24", bg: "rgba(251,191,36,0.1)"  },
+  cancel_pending:   { label: "Cancelling…",color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
+  filled:           { label: "Filled ✓",   color: "#00ff87", bg: "rgba(0,255,135,0.1)"   },
+  cancelled:        { label: "Cancelled",  color: "#ff3b5c", bg: "rgba(255,59,92,0.1)"   },
+  rejected:         { label: "Rejected",   color: "#f97316", bg: "rgba(249,115,22,0.1)"  },
+  expired:          { label: "Expired",    color: "#64748b", bg: "rgba(100,116,139,0.1)" },
+  failed_reconcile: { label: "Reconcile?", color: "#f97316", bg: "rgba(249,115,22,0.1)"  },
 };
 
 interface Props {

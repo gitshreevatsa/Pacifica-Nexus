@@ -40,10 +40,17 @@ export function useOrderLifecycleSync(walletAddress: string | null) {
 
       const store = useOrderLifecycleStore.getState();
       for (const update of msg.data) {
-        if (update.os === "filled" || update.os === "partially_filled") {
+        if (update.os === "filled") {
           store.markFilled(update.i);
+        } else if (update.os === "partially_filled") {
+          const entry = store.getByOrderId(update.i);
+          const filled = entry ? parseFloat(update.f ?? "0") : 0;
+          store.markPartiallyFilled(update.i, filled);
         } else if (update.os === "cancelled") {
           store.markCancelled(update.i);
+        } else if (update.os === "rejected") {
+          const entry = store.getByOrderId(update.i);
+          if (entry) store.markRejected(entry.clientOrderId);
         }
       }
 

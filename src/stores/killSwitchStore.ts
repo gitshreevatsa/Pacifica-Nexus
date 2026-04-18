@@ -25,6 +25,17 @@
 
 import { create } from "zustand";
 
+// Read operator kill switch from env at module load time.
+// Set NEXT_PUBLIC_KILL_SWITCH=true in your Vercel / Railway dashboard to halt
+// all trading immediately without shipping a new build.
+const BOOT_HALTED =
+  typeof process !== "undefined" &&
+  process.env.NEXT_PUBLIC_KILL_SWITCH === "true";
+const BOOT_REASON =
+  (typeof process !== "undefined" &&
+    process.env.NEXT_PUBLIC_KILL_SWITCH_REASON) ||
+  "Trading disabled by operator";
+
 export interface KillSwitchState {
   /** All order mutations are blocked when true. */
   tradingHalted: boolean;
@@ -41,9 +52,9 @@ export interface KillSwitchState {
 }
 
 export const useKillSwitchStore = create<KillSwitchState>((set) => ({
-  tradingHalted: false,
-  haltReason:    "",
-  haltedAt:      null,
+  tradingHalted: BOOT_HALTED,
+  haltReason:    BOOT_HALTED ? BOOT_REASON : "",
+  haltedAt:      BOOT_HALTED ? Date.now() : null,
 
   haltTrading: (reason: string) =>
     set({ tradingHalted: true, haltReason: reason, haltedAt: Date.now() }),

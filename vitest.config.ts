@@ -9,7 +9,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["src/lib/trading-math.ts", "src/lib/keyVault.ts"],
+      include: [
+        "src/lib/trading-math.ts",
+        "src/lib/keyVault.ts",
+        "src/stores/orderLifecycleStore.ts",
+        "src/stores/killSwitchStore.ts",
+      ],
     },
   },
   resolve: {
