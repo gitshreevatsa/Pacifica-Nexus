@@ -293,7 +293,7 @@ NEXT_PUBLIC_BUILDER_CODE=POINTPULSE
 | `NEXT_PUBLIC_PACIFICA_*`   | Yes      | Fixed values — do not change                              |
 | `JUPITER_API_KEY`          | No       | [jup.ag](https://jup.ag) — higher rate limits if set      |
 
-> **Note:** `server-only` vars are used exclusively in Next.js API routes and never bundled into the client. The app validates all required vars at startup via Zod — it will refuse to start with a clear error message if any are missing.
+> **Note:** `server-only` vars are used exclusively in Next.js API routes and never bundled into the client. The app validates all required vars at startup via Zod — it will refuse to start with a clear error message if any are missing
 
 ### 3. Run Development Server
 
