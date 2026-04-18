@@ -15,10 +15,15 @@ import { withSentryConfig } from "@sentry/nextjs";
  *  - Elfa AI: proxied server-side (/api/elfa) — no direct client fetch
  *  - Solana wallet adapters load scripts from their own CDNs
  */
+// unsafe-eval is only needed in development (Next.js HMR uses eval).
+// In production it is removed to tighten the security posture.
+const isDev = process.env.NODE_ENV === "development";
+
 const CSP = [
   "default-src 'self'",
   // Scripts: self + Privy SDK + inline scripts Next.js needs
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.privy.io https://auth.privy.io",
+  // unsafe-eval is included in dev only (HMR); excluded from prod builds
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://*.privy.io https://auth.privy.io`,
   // Styles: self + inline (Tailwind generates inline styles)
   "style-src 'self' 'unsafe-inline'",
   // Images: self + data URIs (charts, icons)

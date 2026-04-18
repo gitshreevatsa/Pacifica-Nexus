@@ -12,8 +12,10 @@ export default defineConfig({
       include: [
         "src/lib/trading-math.ts",
         "src/lib/keyVault.ts",
+        "src/lib/featureFlags.ts",
         "src/stores/orderLifecycleStore.ts",
         "src/stores/killSwitchStore.ts",
+        "src/stores/tradeLogStore.ts",
       ],
     },
   },

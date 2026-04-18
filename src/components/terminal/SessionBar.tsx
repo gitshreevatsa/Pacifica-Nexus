@@ -28,6 +28,7 @@ import {
 import { usePacifica } from "@/hooks/usePacifica";
 import { useWsStatus } from "@/hooks/useWsStatus";
 import { useOrderLifecycleSync } from "@/hooks/useOrderLifecycleSync";
+import { useRemoteKillSwitch } from "@/hooks/useRemoteKillSwitch";
 import { useFundingAlertStore } from "@/stores/fundingAlertStore";
 import { useFundingAlerts } from "@/hooks/useFundingAlerts";
 import { truncateAddress, formatUSD, cn } from "@/lib/utils";
@@ -418,6 +419,7 @@ export default function SessionBar() {
 
   // Reconcile order lifecycle states against WS fill/cancel events
   useOrderLifecycleSync(walletAddress);
+  useRemoteKillSwitch();
 
   const { alerts } = useFundingAlertStore();
   const firedAlerts = useFundingAlerts(markets);
