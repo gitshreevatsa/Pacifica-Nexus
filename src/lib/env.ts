@@ -47,16 +47,19 @@ function validateEnv() {
   // During `next build`, Next.js sets NEXT_PHASE. Skip server-only validation
   // at build time — those vars are injected at runtime by the deployment environment.
   const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  // CI sets this to skip server-side secret validation when running E2E tests
+  // against a production build with stub env vars (secrets are not available in CI).
+  const isSkipped = process.env.CI_SKIP_ENV_VALIDATION === "true";
 
   const clientResult = clientSchema.safeParse(process.env);
-  if (!clientResult.success && !isBuildPhase) {
+  if (!clientResult.success && !isBuildPhase && !isSkipped) {
     const msg = clientResult.error.issues
       .map((i) => `  ${i.path.join(".")}: ${i.message}`)
       .join("\n");
     throw new Error(`Missing or invalid environment variables:\n${msg}`);
   }
 
-  if (isServer && !isBuildPhase) {
+  if (isServer && !isBuildPhase && !isSkipped) {
     const serverResult = serverSchema.safeParse(process.env);
     if (!serverResult.success) {
       const msg = serverResult.error.issues
