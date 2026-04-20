@@ -6,9 +6,11 @@ import { Search } from "lucide-react";
 import {
   createChart,
   ColorType,
+  LineStyle,
   type IChartApi,
   type ISeriesApi,
   type CandlestickData,
+  type IPriceLine,
 } from "lightweight-charts";
 import { getPacificaClient } from "@/lib/pacifica-client";
 import { usePacifica } from "@/hooks/usePacifica";
@@ -82,12 +84,14 @@ export default function PriceChart() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const priceLineRefs = useRef<IPriceLine[]>([]);
 
   const [selectedSymbol, setSelectedSymbol] = useState("SOL");
   const [selectedInterval, setSelectedInterval] = useState<Interval>("5m");
   const [marketSearch, setMarketSearch] = useState("");
+  const [chartReady, setChartReady] = useState(false);
 
-  const { markets } = usePacifica();
+  const { markets, positions } = usePacifica();
 
   const filteredMarkets = useMemo(() => {
     const q = marketSearch.trim().toLowerCase();
@@ -155,6 +159,7 @@ export default function PriceChart() {
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
+    setChartReady(true);
 
     const ro = new ResizeObserver(() => {
       if (chartContainerRef.current) {
@@ -167,6 +172,7 @@ export default function PriceChart() {
     ro.observe(chartContainerRef.current);
 
     return () => {
+      setChartReady(false);
       ro.disconnect();
       chart.remove();
     };
@@ -179,6 +185,45 @@ export default function PriceChart() {
       chartRef.current?.timeScale().fitContent();
     }
   }, [klines]);
+
+  // ── Liquidation + entry price lines ─────────────────────────────────────────
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+
+    // Remove old lines
+    priceLineRefs.current.forEach((pl) => {
+      try { series.removePriceLine(pl); } catch { /* chart may have been removed */ }
+    });
+    priceLineRefs.current = [];
+
+    // Draw lines for positions on the currently viewed symbol
+    const symbolPositions = positions.filter((p) => p.symbol === selectedSymbol);
+    symbolPositions.forEach((pos) => {
+      if (pos.entryPrice > 0) {
+        const entryLine = series.createPriceLine({
+          price: pos.entryPrice,
+          color: "rgba(0,98,255,0.75)",
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `ENTRY (${pos.side})`,
+        });
+        priceLineRefs.current.push(entryLine);
+      }
+      if (pos.liquidationPrice > 0) {
+        const liqLine = series.createPriceLine({
+          price: pos.liquidationPrice,
+          color: "rgba(255,59,92,0.9)",
+          lineWidth: 2,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: `LIQ (${pos.side})`,
+        });
+        priceLineRefs.current.push(liqLine);
+      }
+    });
+  }, [positions, selectedSymbol, chartReady]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -261,6 +306,35 @@ export default function PriceChart() {
               <span className="text-slate-300">{formatUSD(activeMarket.volume24h)}</span>
             </span>
           </div>
+
+          {/* Position lines legend — always visible so user knows the state */}
+          {(() => {
+            const symbolPos = positions.filter((p) => p.symbol === selectedSymbol);
+            if (symbolPos.length === 0) {
+              return (
+                <div className="text-[9px] font-mono text-slate-600 flex items-center gap-1">
+                  <span className="w-5 border-t border-dashed border-slate-700 inline-block" />
+                  no open position
+                </div>
+              );
+            }
+            return (
+              <div className="flex items-center gap-2">
+                {symbolPos.map((p) => (
+                  <div key={p.id} className="flex items-center gap-1.5 text-[9px] font-mono">
+                    <span className="flex items-center gap-1 text-blue-400">
+                      <span className="w-3 border-t border-dashed border-blue-400 inline-block" />
+                      Entry {formatUSD(p.entryPrice)}
+                    </span>
+                    <span className="flex items-center gap-1 text-danger">
+                      <span className="w-3 border-t-2 border-dashed border-danger inline-block" />
+                      LIQ {formatUSD(p.liquidationPrice)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Interval selector */}
           <div className="ml-auto flex items-center gap-0.5">

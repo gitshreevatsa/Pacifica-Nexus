@@ -23,7 +23,9 @@ const ArbScanner   = dynamic(() => import("@/components/terminal/ArbScanner"),  
 const RiskGuard    = dynamic(() => import("@/components/terminal/RiskGuard"),    { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
 const TradeLog     = dynamic(() => import("@/components/terminal/TradeLog"),     { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
 const MarketScanner = dynamic(() => import("@/components/terminal/MarketScanner"), { ssr: false, loading: () => <PanelSkeleton rows={6} /> });
-const TpSlManager  = dynamic(() => import("@/components/terminal/TpSlManager"),  { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
+const TpSlManager      = dynamic(() => import("@/components/terminal/TpSlManager"),      { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
+// const MarketAssistant  = dynamic(() => import("@/components/terminal/MarketAssistant"),  { ssr: false });
+const LiqMap           = dynamic(() => import("@/components/terminal/LiqMap"),           { ssr: false, loading: () => <PanelSkeleton rows={5} /> });
 
 function PanelSkeleton({ rows }: { rows: number }) {
   return (
@@ -80,7 +82,7 @@ function GlobalToast() {
   );
 }
 
-type CenterTab = "arb" | "markets" | "trades" | "tpsl";
+type CenterTab = "arb" | "markets" | "trades" | "tpsl" | "liqmap";
 
 function CenterTabBar({
   active,
@@ -94,6 +96,7 @@ function CenterTabBar({
     { id: "markets", label: "Market Scanner"    },
     { id: "trades",  label: "Trade Log"         },
     { id: "tpsl",    label: "TP / SL"           },
+    { id: "liqmap",  label: "Liq Map"           },
   ];
 
   return (
@@ -251,6 +254,11 @@ export default function NexusDashboard() {
                 <TpSlManager />
               </Suspense>
             )}
+            {centerTab === "liqmap" && (
+              <Suspense fallback={<PanelSkeleton rows={5} />}>
+                <LiqMap />
+              </Suspense>
+            )}
           </div>
         </div>
 
@@ -267,6 +275,9 @@ export default function NexusDashboard() {
 
       {/* Bottom — Quick Order Bar */}
       <QuickOrderBar />
+
+      {/* Floating market intelligence assistant — disabled for now, re-enable by uncommenting */}
+      {/* <MarketAssistant /> */}
 
       {/* Global error / success toasts from mutation onError handlers */}
       <GlobalToast />
