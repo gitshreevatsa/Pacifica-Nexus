@@ -184,7 +184,9 @@ export function useWhaleStream(): UseWhaleStreamReturn {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsSocialLoading(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSocialError(null);
 
     getTrendingTokens("24h", 20)

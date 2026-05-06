@@ -99,6 +99,7 @@ test("wrong passphrase can be corrected and then succeed (with real vault + real
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (page.evaluate as any)(async (pw: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const s = (crypto.subtle as any); // avoid TS 5.5 ArrayBuffer overload issues in page context
     const enc         = new TextEncoder();
     const fakeKey     = "FakePrivKey1111111111111111111111111111111111111111111";

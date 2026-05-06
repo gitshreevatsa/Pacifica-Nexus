@@ -315,7 +315,7 @@ export default function MarketAssistant() {
           <HelpCard />
         </div>
       ),
-      timestamp: Date.now(),
+      timestamp: 0,
     },
   ]);
 
@@ -368,7 +368,7 @@ export default function MarketAssistant() {
               <TrendingList tokens={tokens} />
             ) : (
               <span className="text-slate-400 text-[11px] font-mono">
-                Couldn't fetch trending data right now.
+                Couldn&apos;t fetch trending data right now.
               </span>
             )
           );

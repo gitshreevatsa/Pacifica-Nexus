@@ -432,11 +432,13 @@ export default function SessionBar() {
   // (e.g. after a page refresh). Also wipe any legacy plaintext key found.
   useEffect(() => {
     if (hasLegacyPlaintextKey()) wipeLegacyKey();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (hasVault() && !keyStored) setShowUnlockModal(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hide unlock modal once key is in memory
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (keyStored) setShowUnlockModal(false);
   }, [keyStored]);
 

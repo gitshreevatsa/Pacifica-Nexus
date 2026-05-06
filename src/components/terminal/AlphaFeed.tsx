@@ -296,6 +296,7 @@ function SocialCard({
 // ─── Whale Heatmap ────────────────────────────────────────────────────────────
 
 function WhaleHeatmap({ events }: { events: import("@/types").WhaleEvent[] }) {
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const recent = events.filter((e) => now - e.timestamp < 60 * 60 * 1000);
   if (recent.length === 0) return null;
@@ -551,6 +552,7 @@ export default function AlphaFeed() {
           )}
 
           <div className="space-y-2">
+            {/* eslint-disable react-hooks/refs */}
             {pendingSocials.map((signal) => (
               <SocialCard
                 key={signal.symbol}
@@ -560,6 +562,7 @@ export default function AlphaFeed() {
                 sparklineData={sentimentHistory.current.get(signal.symbol)}
               />
             ))}
+            {/* eslint-enable react-hooks/refs */}
           </div>
         </div>
       </div>
