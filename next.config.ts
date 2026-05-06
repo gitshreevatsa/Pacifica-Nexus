@@ -1,7 +1,91 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
+
+/**
+ * Security headers applied to every route.
+ *
+ * CSP is now enforced (Content-Security-Policy).
+ * It was previously in Report-Only mode and audited against real traffic.
+ *
+ * Domains allow-listed from the architecture:
+ *  - Privy: auth.privy.io, *.privy.io (iframes + scripts)
+ *  - Pacifica WS: wss://ws.pacifica.fi
+ *  - Pacifica REST: https://api.pacifica.fi (via server-side client)
+ *  - Jupiter price API: proxied server-side (/api/jupiter) — no direct client fetch
+ *  - Elfa AI: proxied server-side (/api/elfa) — no direct client fetch
+ *  - Solana wallet adapters load scripts from their own CDNs
+ */
+// unsafe-eval is only needed in development (Next.js HMR uses eval).
+// In production it is removed to tighten the security posture.
+const isDev = process.env.NODE_ENV === "development";
+
+const CSP = [
+  "default-src 'self'",
+  // Scripts: self + Privy SDK + inline scripts Next.js needs
+  // unsafe-eval is included in dev only (HMR); excluded from prod builds
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://*.privy.io https://auth.privy.io`,
+  // Styles: self + inline (Tailwind generates inline styles)
+  "style-src 'self' 'unsafe-inline'",
+  // Images: self + data URIs (charts, icons)
+  "img-src 'self' data: blob:",
+  // Fonts: self
+  "font-src 'self'",
+  // Connect: self + Pacifica WS + Privy API + Solana RPC + WalletConnect explorer (wallet listings)
+  "connect-src 'self' wss://ws.pacifica.fi https://*.pacifica.fi https://*.privy.io https://auth.privy.io https://api.mainnet-beta.solana.com wss://api.mainnet-beta.solana.com https://*.helius-rpc.com wss://*.helius-rpc.com https://explorer-api.walletconnect.com",
+  // Frames: Privy uses iframes for embedded wallets
+  "frame-src 'self' https://*.privy.io https://auth.privy.io",
+  // Workers: self (Next.js)
+  "worker-src 'self' blob:",
+].join("; ");
+
+const securityHeaders = [
+  {
+    key: "Content-Security-Policy",
+    value: CSP,
+  },
+  {
+    key: "X-Frame-Options",
+    value: "SAMEORIGIN",
+  },
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=()",
+  },
+  {
+    key: "X-DNS-Prefetch-Control",
+    value: "on",
+  },
+];
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: securityHeaders,
+      },
+    ];
+  },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Suppress the Sentry CLI wizard output during builds
+  silent: true,
+  // Don't upload source maps unless SENTRY_AUTH_TOKEN is set
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org:     process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Disable source map upload when no auth token (local dev / CI without secrets)
+  disableLogger: true,
+  automaticVercelMonitors: false,
+});

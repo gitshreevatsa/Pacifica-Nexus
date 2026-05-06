@@ -1,22 +1,24 @@
 import { create } from "zustand";
-import { loadAgentKeypair, storeAgentKeypair, clearAgentKeypair, type AgentKeypair } from "@/lib/signing";
+import type { AgentKeypair } from "@/lib/signing";
 
 interface AgentKeyState {
-  publicKey: string | null;
-  setKeypair: (kp: AgentKeypair) => void;
+  /** Public key — safe to display in UI. */
+  publicKey:  string | null;
+  /** Private key — held ONLY in memory, never persisted to localStorage. */
+  privateKey: string | null;
+  setKeypair:  (kp: AgentKeypair) => void;
   clearKeypair: () => void;
 }
 
 export const useAgentKeyStore = create<AgentKeyState>((set) => ({
-  publicKey: typeof window !== "undefined" ? (loadAgentKeypair()?.publicKey ?? null) : null,
+  publicKey:  null,
+  privateKey: null,
 
   setKeypair: (kp) => {
-    storeAgentKeypair(kp);
-    set({ publicKey: kp.publicKey });
+    set({ publicKey: kp.publicKey, privateKey: kp.privateKey });
   },
 
   clearKeypair: () => {
-    clearAgentKeypair();
-    set({ publicKey: null });
+    set({ publicKey: null, privateKey: null });
   },
 }));

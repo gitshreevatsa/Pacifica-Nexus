@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// API key is optional — Jupiter price API works without one (rate-limited but functional).
 const JUPITER_API_KEY = process.env.JUPITER_API_KEY ?? "";
 
 export async function GET(req: NextRequest) {
   const ids = req.nextUrl.searchParams.get("ids");
   if (!ids) return NextResponse.json({}, { status: 400 });
 
-  if (!JUPITER_API_KEY) {
-    return NextResponse.json({ error: "JUPITER_API_KEY not configured" }, { status: 503 });
-  }
+  const headers: Record<string, string> = {};
+  if (JUPITER_API_KEY) headers["x-api-key"] = JUPITER_API_KEY;
 
   const res = await fetch(`https://api.jup.ag/price/v3?ids=${ids}`, {
-    headers: { "x-api-key": JUPITER_API_KEY },
+    headers,
     next: { revalidate: 5 },
   });
 

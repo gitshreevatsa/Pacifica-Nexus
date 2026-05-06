@@ -50,6 +50,7 @@ export function useOIDelta(markets: Market[]): Record<string, number> {
       }
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDeltas(result);
   }, [markets]);
 

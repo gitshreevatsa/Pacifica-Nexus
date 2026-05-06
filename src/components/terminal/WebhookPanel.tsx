@@ -35,6 +35,7 @@ export default function WebhookPanel() {
 
   // Compute origin after mount (SSR safe)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(window.location.origin);
   }, []);
 
@@ -61,6 +62,7 @@ export default function WebhookPanel() {
   });
 
   // "LIVE" badge: any event in the last 2 minutes
+  // eslint-disable-next-line react-hooks/purity
   const isLive = events.some((e) => Date.now() - e.timestamp < 120_000);
   const recentRows = events.slice(0, 10);
 

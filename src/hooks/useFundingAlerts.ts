@@ -45,6 +45,7 @@ export function useFundingAlerts(markets: Market[]): FiredAlert[] {
 
       if (triggered) {
         markTriggered(alert.id);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFired((prev) =>
           [
             ...prev,

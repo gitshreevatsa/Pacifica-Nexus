@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import {
@@ -26,10 +26,22 @@ import {
   Trash2,
 } from "lucide-react";
 import { usePacifica } from "@/hooks/usePacifica";
+import { useWsStatus } from "@/hooks/useWsStatus";
+import { useOrderLifecycleSync } from "@/hooks/useOrderLifecycleSync";
+import { useRemoteKillSwitch } from "@/hooks/useRemoteKillSwitch";
 import { useFundingAlertStore } from "@/stores/fundingAlertStore";
 import { useFundingAlerts } from "@/hooks/useFundingAlerts";
 import { truncateAddress, formatUSD, cn } from "@/lib/utils";
 import type { Market } from "@/types";
+import { importAgentKey } from "@/lib/signing";
+import {
+  encryptKey,
+  saveVault,
+  hasVault,
+  hasLegacyPlaintextKey,
+  wipeLegacyKey,
+} from "@/lib/keyVault";
+import UnlockKeyModal from "@/components/terminal/UnlockKeyModal";
 
 // ─── Agent Key Modal ──────────────────────────────────────────────────────────
 
@@ -42,18 +54,29 @@ function AgentKeyModal({
   onClose: () => void;
   hasSolanaWallet: boolean;
 }) {
-  const [value, setValue] = useState("");
-  const [showKey, setShowKey] = useState(false);
-  const [error, setError] = useState("");
+  const [value,      setValue]      = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [showKey,    setShowKey]    = useState(false);
+  const [showPass,   setShowPass]   = useState(false);
+  const [error,      setError]      = useState("");
+  const [encrypting, setEncrypting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const trimmed = value.trim();
-    if (!trimmed) { setError("Paste your agent private key."); return; }
+    if (!trimmed)    { setError("Paste your agent private key."); return; }
+    if (!passphrase) { setError("Enter a passphrase to encrypt your key."); return; }
+    setEncrypting(true);
     try {
-      onImport(trimmed);
+      const kp    = importAgentKey(trimmed);    // validates format
+      const vault = await encryptKey(kp.privateKey, passphrase);
+      saveVault(vault);
+      wipeLegacyKey();                          // remove any old plaintext key
+      onImport(trimmed);                        // set keypair in memory
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Invalid key format");
+    } finally {
+      setEncrypting(false);
     }
   };
 
@@ -86,7 +109,7 @@ function AgentKeyModal({
           {[
             { n: 1, text: "Create an Agent Key at Pacifica", link: "https://app.pacifica.fi/apikey" },
             { n: 2, text: "Copy the private key (base58)" },
-            { n: 3, text: "Paste below — saved in localStorage (persists across sessions)" },
+            { n: 3, text: "Paste below and set a passphrase — key is stored encrypted" },
           ].map(({ n, text, link }) => (
             <div key={n} className="flex items-start gap-2">
               <span className="w-4 h-4 rounded-full bg-electric/20 text-electric text-[10px] flex items-center justify-center shrink-0 mt-0.5 font-bold">
@@ -105,7 +128,8 @@ function AgentKeyModal({
           ))}
         </div>
 
-        <div className="relative mb-1">
+        {/* Private key input */}
+        <div className="relative mb-2">
           <input
             type={showKey ? "text" : "password"}
             value={value}
@@ -120,9 +144,24 @@ function AgentKeyModal({
           </button>
         </div>
 
-        {/* Clarify what will be displayed after import */}
+        {/* Passphrase input */}
+        <div className="relative mb-1">
+          <input
+            type={showPass ? "text" : "password"}
+            value={passphrase}
+            onChange={(e) => { setPassphrase(e.target.value); setError(""); }}
+            placeholder="Set a passphrase to encrypt the key…"
+            className="w-full text-white text-xs font-mono rounded-lg px-3 py-2.5 pr-10 focus:outline-none placeholder:text-slate-600"
+            style={{ background: "rgba(255,255,255,0.05)" }}
+          />
+          <button onClick={() => setShowPass((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+            {showPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
         <p className="text-[10px] text-slate-500 mb-3 pl-1">
-          The badge will show your <span className="text-slate-400">public key</span> (derived from the private key you paste — this is intentional).
+          Key is encrypted (AES-GCM) before being stored. You will need this passphrase to unlock each session.
         </p>
 
         {error && (
@@ -131,9 +170,9 @@ function AgentKeyModal({
           </p>
         )}
 
-        <button onClick={handleSubmit} disabled={!value.trim()}
+        <button onClick={handleSubmit} disabled={!value.trim() || !passphrase || encrypting}
           className="w-full bg-electric hover:bg-electric-600 disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">
-          Connect Key
+          {encrypting ? "Encrypting…" : "Encrypt & Connect Key"}
         </button>
       </div>
     </div>
@@ -376,13 +415,46 @@ export default function SessionBar() {
     isApprovingBuilderCode,
   } = usePacifica();
 
+  const { connected: wsConnected, stale: wsStale } = useWsStatus();
+
+  // Reconcile order lifecycle states against WS fill/cancel events
+  useOrderLifecycleSync(walletAddress);
+  useRemoteKillSwitch();
+
   const { alerts } = useFundingAlertStore();
   const firedAlerts = useFundingAlerts(markets);
 
-  const [showModal,  setShowModal]  = useState(false);
-  const [showAlerts, setShowAlerts] = useState(false);
+  const [showModal,       setShowModal]       = useState(false);
+  const [showAlerts,      setShowAlerts]      = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+
+  // Show unlock modal on mount if an encrypted vault exists but the key isn't in memory yet
+  // (e.g. after a page refresh). Also wipe any legacy plaintext key found.
+  useEffect(() => {
+    if (hasLegacyPlaintextKey()) wipeLegacyKey();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (hasVault() && !keyStored) setShowUnlockModal(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hide unlock modal once key is in memory
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (keyStored) setShowUnlockModal(false);
+  }, [keyStored]);
 
   const handleImport = useCallback((key: string) => { importKey(key); }, [importKey]);
+
+  const handleUnlock = useCallback(
+    (kp: { publicKey: string; privateKey: string }) => { importKey(kp.privateKey); },
+    [importKey]
+  );
+
+  // Vault was wiped from the unlock modal (forgot passphrase / replace key).
+  // Dismiss the unlock modal and open the import modal so the user can re-import.
+  const handleReplaceKey = useCallback(() => {
+    setShowUnlockModal(false);
+    setShowModal(true);
+  }, []);
 
   const activeAlertCount  = alerts.length;
   const firedCount        = alerts.filter((a) => a.triggered).length;
@@ -399,6 +471,16 @@ export default function SessionBar() {
           <div>
             <h1 className="text-sm font-bold text-white tracking-tight">Pacifica Nexus</h1>
           </div>
+          {/* WS connection indicator */}
+          <div
+            className={cn(
+              "w-1.5 h-1.5 rounded-full transition-colors",
+              wsConnected && !wsStale ? "bg-neon-green shadow-[0_0_4px_theme(colors.neon-green)]"
+                : wsStale            ? "bg-warning"
+                : "bg-danger"
+            )}
+            title={wsConnected ? (wsStale ? "Feed stale — no data in 60s" : "Live feed connected") : "Feed disconnected"}
+          />
         </div>
 
         {/* Center: account health */}
@@ -555,6 +637,10 @@ export default function SessionBar() {
           onClose={() => setShowModal(false)}
           hasSolanaWallet={!!walletAddress}
         />
+      )}
+
+      {showUnlockModal && (
+        <UnlockKeyModal onUnlock={handleUnlock} onReplaceKey={handleReplaceKey} />
       )}
     </>
   );

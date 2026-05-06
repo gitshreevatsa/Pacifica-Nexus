@@ -94,24 +94,51 @@ function normalizeMention(raw: ElfaMentionRaw, index: number): ElfaMention {
   };
 }
 
+// ─── Simple TTL cache ─────────────────────────────────────────────────────────
+// Shared across all callers (AlphaFeed, useWhaleStream, MarketAssistant, etc.)
+// so the same data is never fetched twice within the TTL window.
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const cache = new Map<string, CacheEntry<unknown>>();
+
+async function cachedGet<T>(
+  key: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>
+): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && Date.now() < hit.expiresAt) return hit.data as T;
+  const data = await fetcher();
+  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  return data;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
+
+const TRENDING_TTL = 2 * 60 * 1000;   // 2 min — same result for all callers
+const MENTIONS_TTL = 3 * 60 * 1000;   // 3 min per symbol
 
 /**
  * Trending tokens by social mention volume.
  * Elfa v2: GET /v2/aggregations/trending-tokens
+ * Cached for 2 minutes so concurrent callers share one request.
  */
 export async function getTrendingTokens(
   timeWindow: "1h" | "24h" | "7d" = "24h",
   limit = 15
 ): Promise<TrendingToken[]> {
-  const raw = await elfaGet<unknown>("/v2/aggregations/trending-tokens", {
-    timeWindow,
-    pageSize: String(limit),
-    page: "1",
-  });
-
-  const list = extractList(raw);
-  return list.slice(0, limit).map(normalizeTrending);
+  return cachedGet(`trending-${timeWindow}`, TRENDING_TTL, async () => {
+    const raw = await elfaGet<unknown>("/v2/aggregations/trending-tokens", {
+      timeWindow,
+      pageSize: String(50), // always fetch max so slice works for any limit
+      page: "1",
+    });
+    return extractList(raw).map(normalizeTrending);
+  }).then((list) => list.slice(0, limit));
 }
 
 /**
@@ -144,20 +171,21 @@ function extractList(raw: unknown): ElfaTrendingRaw[] {
 /**
  * High-engagement mentions for a token keyword.
  * Elfa v2: GET /v2/data/top-mentions
+ * Cached per keyword for 3 minutes.
  */
 export async function getTopMentions(
   keyword: string,
   limit = 5
 ): Promise<ElfaMention[]> {
-  const raw = await elfaGet<ElfaMentionsResponse>("/v2/data/top-mentions", {
-    keywords: keyword,
-    limit: String(limit),
-    minEngagement: "50",
-  });
-
-  const list: ElfaMentionRaw[] = Array.isArray(raw.data)
-    ? raw.data
-    : (raw.data as { list?: ElfaMentionRaw[] }).list ?? [];
-
-  return list.slice(0, limit).map(normalizeMention);
+  return cachedGet(`mentions-${keyword}`, MENTIONS_TTL, async () => {
+    const raw = await elfaGet<ElfaMentionsResponse>("/v2/data/top-mentions", {
+      keywords: keyword,
+      limit: String(10),
+      minEngagement: "50",
+    });
+    const list: ElfaMentionRaw[] = Array.isArray(raw.data)
+      ? raw.data
+      : (raw.data as { list?: ElfaMentionRaw[] }).list ?? [];
+    return list.map(normalizeMention);
+  }).then((list) => list.slice(0, limit));
 }

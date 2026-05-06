@@ -3,7 +3,8 @@
  * Server-side proxy for Elfa AI API.
  * Keeps ELFA_AI_API_KEY out of the browser bundle.
  *
- * Usage: GET /api/elfa?path=/whale-alerts&asset=SOL&limit=15
+ * GET  /api/elfa?path=/v2/aggregations/trending-tokens&...  → data endpoints
+ * POST /api/elfa  { path: "/v2/chat", ...body }             → chat endpoint
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -60,6 +61,53 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { error: "Failed to reach Elfa AI", detail: String(err) },
       { status: 502 },
+    );
+  }
+}
+
+// ─── POST — Elfa Chat (/v2/chat) ──────────────────────────────────────────────
+
+export async function POST(req: NextRequest) {
+  if (!ELFA_API_KEY) {
+    return NextResponse.json(
+      { error: "ELFA_AI_API_KEY not configured on server" },
+      { status: 503 }
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { path: endpointPath = "/v2/chat", ...chatBody } = body;
+
+  try {
+    const res = await fetch(`${ELFA_BASE_URL}${endpointPath}`, {
+      method: "POST",
+      headers: {
+        "x-elfa-api-key": ELFA_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(chatBody),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return NextResponse.json(
+        { error: `Elfa upstream error ${res.status}`, detail: text },
+        { status: res.status }
+      );
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to reach Elfa AI", detail: String(err) },
+      { status: 502 }
     );
   }
 }

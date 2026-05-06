@@ -7,33 +7,7 @@ import { useTrailingStopStore } from "@/stores/trailingStopStore";
 import { cn, formatUSD } from "@/lib/utils";
 import { useToast } from "@/hooks/useToast";
 import type { Position, PacificaOrder, Direction } from "@/types";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** For a given position side, bracket orders live on the opposite Pacifica side. */
-function bracketSide(positionSide: Direction): "bid" | "ask" {
-  return positionSide === "LONG" ? "ask" : "bid";
-}
-
-function isTp(order: PacificaOrder, pos: Position): boolean {
-  // TP = reduce-only, opposite side, price above entry (LONG) or below (SHORT)
-  const price = parseFloat(order.price);
-  return (
-    order.reduce_only &&
-    order.side === bracketSide(pos.side) &&
-    (pos.side === "LONG" ? price > pos.entryPrice : price < pos.entryPrice)
-  );
-}
-
-function isSl(order: PacificaOrder, pos: Position): boolean {
-  // SL = reduce-only, opposite side, price below entry (LONG) or above (SHORT)
-  const price = parseFloat(order.price);
-  return (
-    order.reduce_only &&
-    order.side === bracketSide(pos.side) &&
-    (pos.side === "LONG" ? price <= pos.entryPrice : price >= pos.entryPrice)
-  );
-}
+import { bracketSide, isTp, isSl, trailSlPrice, slNeedsUpdate } from "@/lib/trading-math";
 
 // ─── Toggle switch (reusable, matches RiskGuard style) ────────────────────────
 
@@ -138,8 +112,8 @@ function PositionCard({
   const [placingBe, setPlacingBe]   = useState(false);
 
   // Separate TP vs SL orders
-  const tpOrders = bracketOrders.filter((o) => isTp(o, position));
-  const slOrders = bracketOrders.filter((o) => isSl(o, position));
+  const tpOrders = bracketOrders.filter((o) => isTp(o, position.side, position.entryPrice));
+  const slOrders = bracketOrders.filter((o) => isSl(o, position.side, position.entryPrice));
 
   // ── Toggle trailing stop ──────────────────────────────────────────────────
   const handleToggle = useCallback(
@@ -397,17 +371,12 @@ export default function TpSlManager() {
       }
 
       // Compute new SL price from (potentially updated) watermark
-      const newSlPrice =
-        stop.side === "LONG"
-          ? newWaterMark * (1 - stop.trailPct / 100)
-          : newWaterMark * (1 + stop.trailPct / 100);
+      const newSlPrice = trailSlPrice(stop.side, newWaterMark, stop.trailPct);
 
       const prevSl = lastSlPrice.current.get(stop.positionId);
 
       // Only re-place if new SL is more than 0.1% away from last placed SL
-      const needsUpdate =
-        prevSl === undefined ||
-        Math.abs((newSlPrice - prevSl) / prevSl) > 0.001;
+      const needsUpdate = slNeedsUpdate(newSlPrice, prevSl);
 
       if (!needsUpdate) continue;
 

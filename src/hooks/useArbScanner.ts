@@ -8,6 +8,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getPacificaClient } from "@/lib/pacifica-client";
+import {
+  annualizedFundingRate,
+  calcBasisPct,
+  yieldScore,
+  spreadRisk,
+  arbRiskScore,
+  arbRecommendation,
+} from "@/lib/trading-math";
 import type { FundingSnapshot, ArbOpportunity, Market } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -80,40 +88,34 @@ function buildSnapshot(
   spotPrice: number,
   perpSymbol: string
 ): FundingSnapshot {
-  // Funding rate from Pacifica is hourly → annualize: rate * 24h * 365d
-  const annualizedRate = market.fundingRate * 24 * 365 * 100; // in %
+  const ann   = annualizedFundingRate(market.fundingRate);
   const basis = market.markPrice - spotPrice;
-  const basisPct = spotPrice > 0 ? (basis / spotPrice) * 100 : 0;
+  const bPct  = calcBasisPct(market.markPrice, spotPrice);
 
   return {
     market: perpSymbol,
     perpSymbol,
     spotSymbol: perpSymbol.replace("-PERP", "/USDC"),
     fundingRate: market.fundingRate,
-    annualizedRate,
+    annualizedRate: ann,
     spotPrice,
     perpPrice: market.markPrice,
     basis,
-    basisPct,
+    basisPct: bPct,
     direction: basis >= 0 ? "CONTANGO" : "BACKWARDATION",
     updatedAt: Date.now(),
   };
 }
 
 function scoreOpportunity(snap: FundingSnapshot): ArbOpportunity {
-  // Higher yield + lower basis gap = safer arb
-  const yieldScore = Math.min(snap.annualizedRate / 100, 1); // normalize to 0-1
-  const spreadRisk = Math.min(Math.abs(snap.basisPct) / 2, 1); // > 2% spread = risky
-
-  // Risk: 0 = safe, 100 = very risky
-  const riskScore = Math.round((1 - yieldScore * 0.6 + spreadRisk * 0.4) * 100);
-
-  const recommendation: ArbOpportunity["recommendation"] =
-    snap.annualizedRate >= MIN_YIELD_THRESHOLD && riskScore < 60
-      ? "OPEN"
-      : snap.annualizedRate >= 8
-      ? "MONITOR"
-      : "AVOID";
+  const ys         = yieldScore(snap.annualizedRate);
+  const sr         = spreadRisk(snap.basisPct);
+  const riskScore  = arbRiskScore(ys, sr);
+  const recommendation = arbRecommendation(
+    snap.annualizedRate,
+    riskScore,
+    MIN_YIELD_THRESHOLD
+  );
 
   return {
     market: snap.perpSymbol,

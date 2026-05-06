@@ -13,6 +13,9 @@ import dynamic from "next/dynamic";
 import SessionBar from "@/components/terminal/SessionBar";
 import QuickOrderBar from "@/components/terminal/QuickOrderBar";
 import PortfolioSummaryBar from "@/components/terminal/PortfolioSummaryBar";
+import { KillSwitchBanner } from "@/components/terminal/KillSwitchBanner";
+import { StaleFeedBanner } from "@/components/terminal/StaleFeedBanner";
+import { useToastStore } from "@/stores/toastStore";
 
 const AlphaFeed    = dynamic(() => import("@/components/terminal/AlphaFeed"),    { ssr: false, loading: () => <PanelSkeleton rows={6} /> });
 const PriceChart   = dynamic(() => import("@/components/terminal/PriceChart"),   { ssr: false, loading: () => <div className="flex-1 animate-pulse rounded-2xl" style={{ background: "rgba(255,255,255,0.02)" }} /> });
@@ -20,7 +23,9 @@ const ArbScanner   = dynamic(() => import("@/components/terminal/ArbScanner"),  
 const RiskGuard    = dynamic(() => import("@/components/terminal/RiskGuard"),    { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
 const TradeLog     = dynamic(() => import("@/components/terminal/TradeLog"),     { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
 const MarketScanner = dynamic(() => import("@/components/terminal/MarketScanner"), { ssr: false, loading: () => <PanelSkeleton rows={6} /> });
-const TpSlManager  = dynamic(() => import("@/components/terminal/TpSlManager"),  { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
+const TpSlManager      = dynamic(() => import("@/components/terminal/TpSlManager"),      { ssr: false, loading: () => <PanelSkeleton rows={4} /> });
+// const MarketAssistant  = dynamic(() => import("@/components/terminal/MarketAssistant"),  { ssr: false });
+const LiqMap           = dynamic(() => import("@/components/terminal/LiqMap"),           { ssr: false, loading: () => <PanelSkeleton rows={5} /> });
 
 function PanelSkeleton({ rows }: { rows: number }) {
   return (
@@ -36,7 +41,48 @@ function PanelSkeleton({ rows }: { rows: number }) {
   );
 }
 
-type CenterTab = "arb" | "markets" | "trades" | "tpsl";
+// ─── Global error/info toast ──────────────────────────────────────────────────
+
+function GlobalToast() {
+  const { message, variant, clear } = useToastStore();
+  if (!message) return null;
+
+  const bg =
+    variant === "error"
+      ? "rgba(220,38,38,0.85)"
+      : variant === "success"
+      ? "rgba(22,163,74,0.85)"
+      : "rgba(30,40,70,0.92)";
+
+  return (
+    <div
+      onClick={clear}
+      style={{
+        position: "fixed",
+        bottom: 80,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: bg,
+        backdropFilter: "blur(10px)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 10,
+        padding: "10px 20px",
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: 500,
+        zIndex: 9999,
+        cursor: "pointer",
+        maxWidth: 480,
+        textAlign: "center",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+      }}
+    >
+      {message}
+    </div>
+  );
+}
+
+type CenterTab = "arb" | "markets" | "trades" | "tpsl" | "liqmap";
 
 function CenterTabBar({
   active,
@@ -50,6 +96,7 @@ function CenterTabBar({
     { id: "markets", label: "Market Scanner"    },
     { id: "trades",  label: "Trade Log"         },
     { id: "tpsl",    label: "TP / SL"           },
+    { id: "liqmap",  label: "Liq Map"           },
   ];
 
   return (
@@ -145,6 +192,8 @@ export default function NexusDashboard() {
   return (
     <div className="flex flex-col h-screen" style={{ background: "#050505" }}>
       <SessionBar />
+      <KillSwitchBanner />
+      <StaleFeedBanner />
 
       <main className="flex-1 grid grid-cols-[380px_1fr_340px] gap-2.5 p-2.5 overflow-hidden min-h-0">
         {/* Left — Alpha Feed */}
@@ -205,6 +254,11 @@ export default function NexusDashboard() {
                 <TpSlManager />
               </Suspense>
             )}
+            {centerTab === "liqmap" && (
+              <Suspense fallback={<PanelSkeleton rows={5} />}>
+                <LiqMap />
+              </Suspense>
+            )}
           </div>
         </div>
 
@@ -221,6 +275,12 @@ export default function NexusDashboard() {
 
       {/* Bottom — Quick Order Bar */}
       <QuickOrderBar />
+
+      {/* Floating market intelligence assistant — disabled for now, re-enable by uncommenting */}
+      {/* <MarketAssistant /> */}
+
+      {/* Global error / success toasts from mutation onError handlers */}
+      <GlobalToast />
     </div>
   );
 }
